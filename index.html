@@ -59,17 +59,17 @@
   .row-reconcil td { color: #cbd5e1; font-size: 11px; font-style: italic; font-weight: 400; background: #fafbfc; }
   .row-reconcil td:first-child { color: #cbd5e1; }
   .data-table tr:hover td { background: #f8fafc; }
-  .row-total:hover td, .row-header:hover td, .row-category:hover td, .row-reconcil:hover td { background: inherit; }
+  .row-total:hover td, .row-header:hover td, .row-reconcil:hover td { background: inherit; }
   .indent { padding-left: 24px !important; color: #64748b !important; }
 
   .chart-wrap { position: relative; width: 100%; height: 260px; }
-  .chart-wrap-tall { position: relative; width: 100%; height: 300px; }
+  .chart-wrap-tall { position: relative; width: 100%; height: 320px; }
   .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
   .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem; color: #64748b; gap: 12px; }
   .spinner { width: 28px; height: 28px; border: 2px solid #e2e8f0; border-top-color: #0ea5e9; border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .error-msg { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; color: #dc2626; margin-bottom: 14px; }
+  .error-msg { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; color: #dc2626; margin-bottom: 14px; white-space: pre-wrap; word-break: break-word; }
   .conn-bar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 16px; margin: 0 24px 14px; font-size: 12px; color: #64748b; }
   .conn-bar.ok { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
   .conn-bar.fail { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
@@ -90,8 +90,6 @@
   .alert-name { flex: 1; font-weight: 500; }
 
   .narrative { background: #e0f2fe; border-left: 3px solid #0ea5e9; border-radius: 0 8px 8px 0; padding: 14px 16px; font-size: 12px; line-height: 1.8; color: #334155; white-space: pre-wrap; }
-
-  .debug-line { font-size: 11px; color: #94a3b8; margin-top: 10px; padding: 6px 0; }
 
   @media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } .kpi-value { font-size: 17px; } .tab { padding: 8px 10px; font-size: 11px; } }
 </style>
@@ -159,7 +157,7 @@
 <div id="section-pl" class="section">
   <div id="pl-loading" class="loading"><div class="spinner"></div>Loading P&amp;L...</div>
   <div id="pl-content" style="display:none;">
-    <div class="card"><div class="card-title">Profit &amp; Loss</div><table class="data-table" id="pl-table"></table><div class="debug-line" id="pl-debug"></div></div>
+    <div class="card"><div class="card-title">Profit &amp; Loss</div><table class="data-table" id="pl-table"></table><div class="debug-line" id="pl-debug" style="font-size:11px;color:#94a3b8;margin-top:10px;"></div></div>
   </div>
 </div>
 
@@ -185,10 +183,10 @@
   <div id="forecast-loading" class="loading"><div class="spinner"></div>Loading forecast...</div>
   <div id="forecast-content" style="display:none;">
     <div class="card">
-      <div class="card-title">Ending cash balance</div>
+      <div class="card-title">Ending Cash Balance</div>
       <div class="chart-wrap-tall"><canvas id="endcash-chart"></canvas></div>
     </div>
-    <div class="card"><div class="card-title">Weekly detail</div><div style="overflow-x:auto;"><table class="data-table" id="forecast-table"></table></div></div>
+    <div class="card"><div class="card-title">Weekly Detail</div><div style="overflow-x:auto;"><table class="data-table" id="forecast-table"></table></div></div>
   </div>
 </div>
 
@@ -306,13 +304,6 @@ function makeTable(el, rows, cols) {
     var rowData = rows[r];
     var tr = document.createElement("tr");
     if (rowData.rowClass) { tr.className = rowData.rowClass; }
-    if (rowData.isCategory) {
-      tr.setAttribute("data-group-toggle", rowData.groupId);
-    }
-    if (rowData.isSub) {
-      tr.className = (tr.className ? tr.className + " " : "") + "sub-row";
-      tr.setAttribute("data-group", rowData.groupId);
-    }
     for (var k = 0; k < rowData.cells.length; k++) {
       var cell = rowData.cells[k];
       var td = document.createElement("td");
@@ -722,6 +713,40 @@ function wirePLToggles() {
   }
 }
 
+function makeTableWithGroups(el, rows, cols) {
+  if (!el) { return; }
+  el.innerHTML = "";
+  var thead = document.createElement("thead");
+  var hrow = document.createElement("tr");
+  for (var c = 0; c < cols.length; c++) {
+    var th = document.createElement("th");
+    th.textContent = cols[c];
+    hrow.appendChild(th);
+  }
+  thead.appendChild(hrow);
+  el.appendChild(thead);
+  var tbody = document.createElement("tbody");
+  for (var r = 0; r < rows.length; r++) {
+    var rowData = rows[r];
+    var tr = document.createElement("tr");
+    if (rowData.rowClass) { tr.className = rowData.rowClass; }
+    if (rowData.isCategory) { tr.setAttribute("data-group-toggle", rowData.groupId); }
+    if (rowData.isSub) {
+      tr.className = (tr.className ? tr.className + " " : "") + "sub-row";
+      tr.setAttribute("data-group", rowData.groupId);
+    }
+    for (var k = 0; k < rowData.cells.length; k++) {
+      var cell = rowData.cells[k];
+      var td = document.createElement("td");
+      td.textContent = cell.text;
+      if (cell.cls) { td.className = cell.cls; }
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  el.appendChild(tbody);
+}
+
 function loadPL() {
   document.getElementById("pl-loading").style.display = "flex";
   document.getElementById("pl-content").style.display = "none";
@@ -858,7 +883,6 @@ function loadPL() {
       dataRows.push(rowObj);
     }
 
-    // Mark category rows that actually have at least one surviving subaccount
     var groupsWithSubs = {};
     for (var gi = 0; gi < dataRows.length; gi++) {
       if (dataRows[gi].isSub) { groupsWithSubs[dataRows[gi].groupId] = true; }
@@ -869,7 +893,7 @@ function loadPL() {
       }
     }
 
-    makeTable(document.getElementById("pl-table"), dataRows, colHeaders);
+    makeTableWithGroups(document.getElementById("pl-table"), dataRows, colHeaders);
     wirePLToggles();
 
     var debugText = "[debug] fetched: " + rows.length + " | rendered: " + dataRows.length;
@@ -968,6 +992,7 @@ function loadCF() {
   });
 }
 
+// ── 13-WEEK FORECAST: Ending Cash Balance chart ONLY ──────────────────────────
 function loadForecast() {
   document.getElementById("forecast-loading").style.display = "flex";
   document.getElementById("forecast-content").style.display = "none";
@@ -996,7 +1021,6 @@ function loadForecast() {
         if (headerRowIdx !== -1) { break; }
       }
 
-      // Fallback: search for "week start" row instead, header is one row above it
       if (headerRowIdx === -1) {
         for (var hi2 = 0; hi2 < rows.length && hi2 < 25; hi2++) {
           var rowArr2 = rows[hi2] || [];
@@ -1015,7 +1039,6 @@ function loadForecast() {
         }
       }
 
-      // Last-resort fallback: search for "beginning cash" row, header is 3 rows above it
       if (headerRowIdx === -1) {
         for (var hi3 = 0; hi3 < rows.length && hi3 < 30; hi3++) {
           var rowArr3 = rows[hi3] || [];
@@ -1043,9 +1066,7 @@ function loadForecast() {
         return;
       }
 
-      // Find the "Actual"/"Forecast" tag row, usually right above the header row
       var tagRow = rows[headerRowIdx - 1] || [];
-
       var weekStartRow = rows[headerRowIdx + 1] || [];
       var dataStartIdx = headerRowIdx + 3;
       var headerRowArr = rows[headerRowIdx] || [];
@@ -1062,12 +1083,7 @@ function loadForecast() {
         colLabels.push(startTxt);
       }
 
-      var beginCashRow = null;
-      var totalInRow = null;
-      var totalOutRow = null;
-      var netChangeRow = null;
       var endCashRow = null;
-
       var tableRows = [];
 
       for (var i = dataStartIdx; i < rows.length; i++) {
@@ -1079,18 +1095,8 @@ function loadForecast() {
         var label = rawLabelStr.replace(/^\s+|\s+$/g, "");
         if (label === "") { continue; }
         var ll = label.toLowerCase();
-        // Detect indentation either from leading whitespace OR from a separate indented column to the left of labelColIdx
         var leadingSpaces = rawLabelStr.length - rawLabelStr.replace(/^\s+/, "").length;
         var isIndented = leadingSpaces >= 2;
-        if (!isIndented && labelColIdx > 0) {
-          // Check if there's content in a column further right than labelColIdx that holds the "parent" version
-          // (covers sheets where subaccount name sits one column further right than category name)
-          for (var pc = 0; pc < labelColIdx; pc++) {
-            if (r[pc] !== undefined && r[pc] !== null && String(r[pc]).replace(/^\s+|\s+$/g, "") !== "") {
-              isIndented = false;
-            }
-          }
-        }
 
         var isTotalRow = (ll.indexOf("total cash") !== -1) || (ll.indexOf("net change") !== -1) || (ll.indexOf("ending cash") !== -1) || (ll.indexOf("beginning cash") !== -1) || (ll.indexOf("minimum cash") !== -1) || (ll.indexOf("surplus") !== -1) || (ll.indexOf("funding needed") !== -1);
         var isParentCategory = ((ll.indexOf("cash out -") !== -1) || (ll.indexOf("cash in -") !== -1)) && (isIndented === false);
@@ -1117,11 +1123,7 @@ function loadForecast() {
 
         tableRows.push({ cells: cells, rowClass: rowClass });
 
-        if (ll.indexOf("beginning cash") !== -1) { beginCashRow = r; }
-        if (ll === "total cash in") { totalInRow = r; }
-        if (ll === "total cash out") { totalOutRow = r; }
-        if (ll.indexOf("net change") !== -1) { netChangeRow = r; }
-        if (ll.indexOf("ending cash") !== -1 && ll.indexOf("balance") === -1) { endCashRow = r; }
+        if (ll.indexOf("ending cash") !== -1) { endCashRow = r; }
       }
 
       makeTable(document.getElementById("forecast-table"), tableRows, ["Line Item"].concat(colLabels));
