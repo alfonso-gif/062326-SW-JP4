@@ -976,30 +976,38 @@ function loadCF() {
 function loadForecast() {
   document.getElementById("forecast-loading").style.display = "flex";
   document.getElementById("forecast-content").style.display = "none";
-  return fetchRange("13WK_FORECAST!A1:P40").then(function (rows) {
-    if (!rows || rows.length < 3) {
-      throw new Error("13WK_FORECAST tab returned no usable data");
+  return fetchRange("13WK_FORECAST!A1:R45").then(function (rows) {
+    if (!rows || rows.length < 17) {
+      throw new Error("13WK_FORECAST tab returned fewer rows than expected (" + (rows ? rows.length : 0) + ")");
     }
 
-    // Row 0: Actual/Forecast tags, Row 1: "Line Item" + Week 1..13, Row 2: Week start dates, Row 3: Week end dates
-    var weekStartRow = null;
-    var weekEndRow = null;
-    var headerIdx = -1;
-    for (var hi = 0; hi < Math.min(rows.length, 6); hi++) {
-      var first = String(rows[hi][0] || "").toLowerCase();
-      if (first.indexOf("week start") !== -1) { weekStartRow = rows[hi]; }
-      if (first.indexOf("week end") !== -1) { weekEndRow = rows[hi]; headerIdx = hi; }
+    // Find the row that contains "Line Item" in any column - that's our header row
+    var headerRowIdx = -1;
+    var labelColIdx = -1;
+    for (var hi = 0; hi < Math.min(rows.length, 20); hi++) {
+      for (var hc = 0; hc < rows[hi].length; hc++) {
+        if (String(rows[hi][hc] || "").toLowerCase().replace(/^\s+|\s+$/g, "") === "line item") {
+          headerRowIdx = hi;
+          labelColIdx = hc;
+          break;
+        }
+      }
+      if (headerRowIdx !== -1) { break; }
     }
-    if (headerIdx === -1) { headerIdx = 2; }
+    if (headerRowIdx === -1) {
+      throw new Error("Could not find 'Line Item' header row in 13WK_FORECAST");
+    }
 
-    var numCols = rows[headerIdx] ? rows[headerIdx].length : 15;
+    var weekStartRow = rows[headerRowIdx + 1] || [];
+    var weekEndRow = rows[headerRowIdx + 2] || [];
+    var dataStartIdx = headerRowIdx + 3;
+
+    var numCols = rows[headerRowIdx].length;
     var colLabels = [];
-    for (var c = 1; c < numCols; c++) {
-      var startTxt = weekStartRow && weekStartRow[c] ? weekStartRow[c] : ("Wk " + c);
+    for (var c = labelColIdx + 1; c < numCols; c++) {
+      var startTxt = weekStartRow[c] || ("Wk " + (c - labelColIdx));
       colLabels.push(startTxt);
     }
-
-    var dataStartIdx = headerIdx + 1;
 
     var beginCashRow = null;
     var totalInRow = null;
@@ -1008,17 +1016,17 @@ function loadForecast() {
     var endCashRow = null;
 
     var tableRows = [];
-    var currentParentIsCashOut = false;
 
     for (var i = dataStartIdx; i < rows.length; i++) {
       var r = rows[i];
-      if (!r || !r[0]) { continue; }
-      var label = String(r[0]).replace(/^\s+|\s+$/g, "");
-      if (!label) { continue; }
+      if (!r) { continue; }
+      var rawLabel = r[labelColIdx];
+      if (rawLabel === undefined || rawLabel === null || String(rawLabel).replace(/^\s+|\s+$/g, "") === "") { continue; }
+      var label = String(rawLabel).replace(/^\s+|\s+$/g, "");
       var ll = label.toLowerCase();
-      var isIndented = /^\s{2,}/.test(String(r[0]));
+      var isIndented = /^\s{2,}/.test(String(rawLabel));
 
-      var isTotalRow = ll.indexOf("total cash") !== -1 || ll === "net change (in - out)" || ll.indexOf("ending cash") !== -1 || ll.indexOf("beginning cash") !== -1;
+      var isTotalRow = ll.indexOf("total cash") !== -1 || ll === "net change (in - out)" || ll.indexOf("ending cash") !== -1 || ll.indexOf("beginning cash") !== -1 || ll.indexOf("minimum cash") !== -1 || ll.indexOf("surplus") !== -1 || ll.indexOf("funding needed") !== -1;
       var isParentCategory = (ll.indexOf("cash out -") !== -1 || ll.indexOf("cash in -") !== -1) && !isIndented;
 
       var rowClass = "";
@@ -1027,8 +1035,8 @@ function loadForecast() {
 
       var cells = [{ text: label, cls: isIndented ? "indent" : "" }];
       var hasNonZero = false;
-      for (var c2 = 1; c2 < numCols; c2++) {
-        var raw = r[c2] || "";
+      for (var c2 = labelColIdx + 1; c2 < numCols; c2++) {
+        var raw = r[c2] === undefined || r[c2] === null ? "" : String(r[c2]);
         var n = numVal(raw);
         if (n !== 0) { hasNonZero = true; }
         var txt;
@@ -1037,7 +1045,6 @@ function loadForecast() {
         cells.push({ text: txt, cls: n < 0 ? "neg" : "" });
       }
 
-      // Skip indented subaccount rows that are entirely zero/blank across all weeks
       if (isIndented && !hasNonZero) { continue; }
 
       tableRows.push({ cells: cells, rowClass: rowClass });
@@ -1049,16 +1056,16 @@ function loadForecast() {
       if (ll.indexOf("ending cash") !== -1) { endCashRow = r; }
     }
 
-    makeTable(document.getElementById("forecast-table"), tableRows, ["Line Item"].concat(colLabels.slice(0, 14)));
+    makeTable(document.getElementById("forecast-table"), tableRows, ["Line Item"].concat(colLabels));
 
-    // Build chart data: Inflows (Total Cash In), Outflows (negative Total Cash Out), Net (Net Change), limited to 13 forecast weeks (skip 2 actual columns)
+    // Chart: 13 forecast weeks only (skip the 2 "Actual" columns at the start)
     var chartLabels = [];
     var inflowsData = [];
     var outflowsData = [];
     var netData = [];
     var skipActualCols = 2;
-    for (var w = skipActualCols; w < numCols - 1; w++) {
-      chartLabels.push(weekStartRow && weekStartRow[w] ? weekStartRow[w] : ("Wk " + (w - skipActualCols + 1)));
+    for (var w = labelColIdx + 1 + skipActualCols; w < numCols; w++) {
+      chartLabels.push(weekStartRow[w] || ("Wk " + (w - labelColIdx - skipActualCols)));
       inflowsData.push(totalInRow ? numVal(totalInRow[w]) : 0);
       outflowsData.push(totalOutRow ? -numVal(totalOutRow[w]) : 0);
       netData.push(netChangeRow ? numVal(netChangeRow[w]) : 0);
