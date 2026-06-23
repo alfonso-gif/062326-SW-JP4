@@ -1111,7 +1111,13 @@ function loadForecast() {
       setError("forecast", "Internal error parsing 13WK_FORECAST: " + innerErr.message);
     }
   }, function (e) {
-    setError("forecast", "Could not load forecast: " + e.message);
+    var msg = "Unknown fetch error";
+    if (e && e.message) { msg = e.message; }
+    setError("forecast", "Could not load forecast: " + msg);
+  }).catch(function (outerErr) {
+    var msg2 = "Unknown error";
+    if (outerErr && outerErr.message) { msg2 = outerErr.message; }
+    setError("forecast", "Unhandled error in loadForecast: " + msg2);
   });
 }
 
