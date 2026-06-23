@@ -53,8 +53,7 @@
   .row-reconcil td:first-child { color: #cbd5e1; }
   .data-table tr:hover td { background: #f8fafc; }
   .row-total:hover td, .row-header:hover td, .row-category:hover td, .row-reconcil:hover td { background: inherit; }
-  .indent { padding-left: 24px !important; }
-  .indent2 { padding-left: 44px !important; color: #94a3b8 !important; font-size: 11.5px; }
+  .indent { padding-left: 24px !important; color: #64748b !important; }
 
   .chart-wrap { position: relative; width: 100%; height: 260px; }
   .chart-wrap-tall { position: relative; width: 100%; height: 300px; }
@@ -84,6 +83,8 @@
   .alert-name { flex: 1; font-weight: 500; }
 
   .narrative { background: #e0f2fe; border-left: 3px solid #0ea5e9; border-radius: 0 8px 8px 0; padding: 14px 16px; font-size: 12px; line-height: 1.8; color: #334155; white-space: pre-wrap; }
+
+  .debug-line { font-size: 11px; color: #94a3b8; margin-top: 10px; padding: 6px 0; }
 
   @media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } .kpi-value { font-size: 17px; } .tab { padding: 8px 10px; font-size: 11px; } }
 </style>
@@ -151,7 +152,7 @@
 <div id="section-pl" class="section">
   <div id="pl-loading" class="loading"><div class="spinner"></div>Loading P&amp;L...</div>
   <div id="pl-content" style="display:none;">
-    <div class="card"><div class="card-title">Profit &amp; Loss</div><table class="data-table" id="pl-table"></table></div>
+    <div class="card"><div class="card-title">Profit &amp; Loss</div><table class="data-table" id="pl-table"></table><div class="debug-line" id="pl-debug"></div></div>
   </div>
 </div>
 
@@ -191,21 +192,22 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script type="text/javascript">
+
 window.SHEET_ID = "1wRro4QgZEUn_RPLMas1S_C5gdz8WJDM0No8n8KgDjLE";
 window.charts = {};
 Chart.defaults.color = "#64748b";
 Chart.defaults.borderColor = "#e2e8f0";
 
-window.showTab = function (name, el) {
+function showTab(name, el) {
   var sections = document.querySelectorAll(".section");
   for (var i = 0; i < sections.length; i++) { sections[i].className = "section"; }
   var tabs = document.querySelectorAll(".tab");
   for (var j = 0; j < tabs.length; j++) { tabs[j].className = "tab"; }
   document.getElementById("section-" + name).className = "section active";
   el.className = "tab active";
-};
+}
 
-window.parseCSV = function (text) {
+function parseCSV(text) {
   var rows = [];
   var lines = text.split(String.fromCharCode(10));
   for (var li = 0; li < lines.length; li++) {
@@ -216,76 +218,76 @@ window.parseCSV = function (text) {
     var inQ = false;
     for (var i = 0; i < line.length; i++) {
       var ch = line.charAt(i);
-      if (ch === String.fromCharCode(34)) { inQ = !inQ; }
-      else if (ch === "," && !inQ) { cells.push(cur.replace(/^\s+|\s+$/g, "")); cur = ""; }
-      else { cur = cur + ch; }
+      if (ch === String.fromCharCode(34)) {
+        inQ = !inQ;
+      } else if (ch === "," && !inQ) {
+        cells.push(cur.replace(/^\s+|\s+$/g, ""));
+        cur = "";
+      } else {
+        cur = cur + ch;
+      }
     }
     cells.push(cur.replace(/^\s+|\s+$/g, ""));
     rows.push(cells);
   }
   return rows;
-};
+}
 
-window.fetchSheet = function (sheetName) {
-  var encodedPlus = encodeURIComponent(sheetName).replace(/%20/g, "+");
-  var urlPlus = "https://docs.google.com/spreadsheets/d/" + window.SHEET_ID + "/gviz/tq?tqx=out:csv&sheet=" + encodedPlus;
-
-  return fetch(urlPlus).then(function (res) {
+function fetchSheet(sheetName) {
+  var encoded = encodeURIComponent(sheetName).split("%20").join("+");
+  var url = "https://docs.google.com/spreadsheets/d/" + window.SHEET_ID + "/gviz/tq?tqx=out:csv&sheet=" + encoded;
+  return fetch(url).then(function (res) {
     if (!res.ok) {
       throw new Error("Could not load sheet: " + sheetName + " (" + res.status + ")");
     }
     return res.text();
   }).then(function (text) {
-    if (text.indexOf("signin") !== -1 || text.indexOf("accounts.google.com") !== -1) {
+    if (text.indexOf("accounts.google.com") !== -1) {
       throw new Error("Sheet not accessible: " + sheetName);
     }
-    var parsed = window.parseCSV(text);
-    // Sanity check: if this came back basically empty/wrong, try %20 encoding as fallback
-    if (parsed.length < 2) {
-      var encodedPct = encodeURIComponent(sheetName);
-      var urlPct = "https://docs.google.com/spreadsheets/d/" + window.SHEET_ID + "/gviz/tq?tqx=out:csv&sheet=" + encodedPct;
-      return fetch(urlPct).then(function (res2) {
-        if (!res2.ok) { throw new Error("Could not load sheet (fallback): " + sheetName + " (" + res2.status + ")"); }
-        return res2.text();
-      }).then(function (text2) {
-        return window.parseCSV(text2);
-      });
-    }
-    return parsed;
+    return parseCSV(text);
   });
-};
+}
 
-window.fetchRange = function (range) {
+function fetchRange(range) {
   var sheetName = range.indexOf("!") !== -1 ? range.split("!")[0] : range;
-  return window.fetchSheet(sheetName);
-};
+  return fetchSheet(sheetName);
+}
 
-window.numVal = function (v) {
-  if (!v && v !== 0) { return 0; }
+function numVal(v) {
+  if (v === undefined || v === null || v === "") { return 0; }
   var s = String(v);
-  s = s.replace(/[$,\s%]/g, "");
+  s = s.split("$").join("");
+  s = s.split(",").join("");
+  s = s.split("%").join("");
+  s = s.replace(/^\s+|\s+$/g, "");
   var neg = false;
-  if (s.indexOf("(") !== -1) { neg = true; s = s.replace(/[()]/g, ""); }
+  if (s.indexOf("(") !== -1) {
+    neg = true;
+    s = s.split("(").join("").split(")").join("");
+  }
   var n = parseFloat(s);
   if (isNaN(n)) { return 0; }
-  return neg ? -n : n;
-};
+  return neg ? (n * -1) : n;
+}
 
-window.fmtMoney = function (v) {
-  var n = typeof v === "number" ? v : window.numVal(v);
-  if (n === 0 && v === "") { return String.fromCharCode(8212); }
+function fmtMoney(v) {
+  var n = typeof v === "number" ? v : numVal(v);
   var abs = Math.abs(n);
   var sign = n < 0 ? "-" : "";
   if (abs >= 1000000) { return sign + "$" + (abs / 1000000).toFixed(2) + "M"; }
   if (abs >= 1000) { return sign + "$" + (abs / 1000).toFixed(1) + "K"; }
   return sign + "$" + abs.toFixed(0);
-};
+}
 
-window.destroyChart = function (id) {
-  if (window.charts[id]) { window.charts[id].destroy(); delete window.charts[id]; }
-};
+function destroyChart(id) {
+  if (window.charts[id]) {
+    window.charts[id].destroy();
+    delete window.charts[id];
+  }
+}
 
-window.makeTable = function (el, rows, cols) {
+function makeTable(el, rows, cols) {
   if (!el) { return; }
   el.innerHTML = "";
   var thead = document.createElement("thead");
@@ -299,11 +301,11 @@ window.makeTable = function (el, rows, cols) {
   el.appendChild(thead);
   var tbody = document.createElement("tbody");
   for (var r = 0; r < rows.length; r++) {
-    var row = rows[r];
+    var rowData = rows[r];
     var tr = document.createElement("tr");
-    if (row.rowClass) { tr.className = row.rowClass; }
-    for (var k = 0; k < row.cells.length; k++) {
-      var cell = row.cells[k];
+    if (rowData.rowClass) { tr.className = rowData.rowClass; }
+    for (var k = 0; k < rowData.cells.length; k++) {
+      var cell = rowData.cells[k];
       var td = document.createElement("td");
       td.textContent = cell.text;
       if (cell.cls) { td.className = cell.cls; }
@@ -312,26 +314,26 @@ window.makeTable = function (el, rows, cols) {
     tbody.appendChild(tr);
   }
   el.appendChild(tbody);
-};
+}
 
-window.setLoaded = function (section) {
+function setLoaded(section) {
   document.getElementById(section + "-loading").style.display = "none";
   document.getElementById(section + "-content").style.display = "block";
-};
+}
 
-window.setError = function (section, msg) {
+function setError(section, msg) {
   var el = document.getElementById(section + "-loading");
   el.innerHTML = "";
   var div = document.createElement("div");
   div.className = "error-msg";
   div.textContent = msg;
   el.appendChild(div);
-};
+}
 
 window.periodLabels = { cur: "Current", prior: "Prior" };
 
-window.loadPeriod = function () {
-  return window.fetchRange("PERIOD_CONTROL!A1:D10").then(function (rows) {
+function loadPeriod() {
+  return fetchRange("PERIOD_CONTROL!A1:D10").then(function (rows) {
     var cur = "";
     var prior = "";
     for (var i = 0; i < rows.length; i++) {
@@ -345,16 +347,16 @@ window.loadPeriod = function () {
   }, function () {
     document.getElementById("period-label").textContent = "Current period";
   });
+}
+
+var EXPENSE_LINES = {
+  "Cost of Goods Sold": true, "Payroll & Benefits": true, "Facility & Rent": true, "Insurance": true,
+  "Professional Services": true, "Marketing": true, "Business Development": true, "IT & Technology": true,
+  "Other Operating Expenses": true, "Total Operating Expenses": true, "TOTAL OPERATING EXPENSES": true,
+  "Depreciation & Amortization": true, "Other Expense": true, "Income Tax Expense": true
 };
 
-window.EXPENSE_LINES = {
-  "Cost of Goods Sold": 1, "Payroll & Benefits": 1, "Facility & Rent": 1, "Insurance": 1,
-  "Professional Services": 1, "Marketing": 1, "Business Development": 1, "IT & Technology": 1,
-  "Other Operating Expenses": 1, "Total Operating Expenses": 1, "TOTAL OPERATING EXPENSES": 1,
-  "Depreciation & Amortization": 1, "Other Expense": 1, "Income Tax Expense": 1
-};
-
-window.parsePLRows = function (rows) {
+function parsePLRows(rows) {
   var out = [];
   for (var i = 0; i < rows.length; i++) {
     var r = rows[i];
@@ -366,59 +368,64 @@ window.parsePLRows = function (rows) {
     var isTotal = ll.indexOf("total") !== -1 || ll.indexOf("gross profit") !== -1 || ll.indexOf("ebitda") !== -1 || ll.indexOf("ebit") !== -1 || ll.indexOf("net income") !== -1 || ll.indexOf("income before") !== -1;
     var isPct = label.indexOf("%") !== -1;
     out.push({
-      label: label, isPct: isPct,
+      label: label,
+      isPct: isPct,
       type: isHeader ? "grp" : (isTotal ? "tot" : "sub"),
-      cur: window.numVal(r[2]), prv: window.numVal(r[3]), ytdCur: window.numVal(r[4]), ytdPrv: window.numVal(r[5]),
-      varD: window.numVal(r[6]), varP: window.numVal(r[7])
+      cur: numVal(r[2]),
+      prv: numVal(r[3]),
+      ytdCur: numVal(r[4]),
+      ytdPrv: numVal(r[5]),
+      varD: numVal(r[6]),
+      varP: numVal(r[7])
     });
   }
   return out;
-};
+}
 
-window.favClass = function (varD, label) {
-  var isExp = window.EXPENSE_LINES[label] ? true : false;
+function favClass(varD, label) {
+  var isExp = EXPENSE_LINES[label] === true;
   if (Math.abs(varD) < 0.01) { return "kpi-neu"; }
   var fav = (varD < 0 && isExp) || (varD >= 0 && !isExp);
   return fav ? "pos" : "neg";
-};
+}
 
-window.plGet = function (pl, lbl) {
+function plGet(pl, lbl) {
   for (var i = 0; i < pl.length; i++) {
     if (pl[i].label.toUpperCase() === lbl.toUpperCase()) { return pl[i]; }
   }
   return { cur: 0, prv: 0, varP: 0, varD: 0, ytdCur: 0, ytdPrv: 0 };
-};
+}
 
-window.loadSummary = function () {
+function loadSummary() {
   document.getElementById("summary-loading").style.display = "flex";
   document.getElementById("summary-content").style.display = "none";
-  return Promise.all([window.fetchRange("CALC_PL!A1:H80"), window.fetchRange("CALC_BS!A1:H80")]).then(function (results) {
+  return Promise.all([fetchRange("CALC_PL!A1:H80"), fetchRange("CALC_BS!A1:H80")]).then(function (results) {
     var bsRowsRaw = results[1];
-    var pl = window.parsePLRows(results[0]);
+    var pl = parsePLRows(results[0]);
 
-    var nr = window.plGet(pl, "TOTAL NET REVENUE");
-    var gp = window.plGet(pl, "GROSS PROFIT");
-    var eb = window.plGet(pl, "EBITDA");
-    var opex = window.plGet(pl, "TOTAL OPERATING EXPENSES");
-    var gm = window.plGet(pl, "Gross Margin %");
-    var em = window.plGet(pl, "EBITDA Margin %");
+    var nr = plGet(pl, "TOTAL NET REVENUE");
+    var gp = plGet(pl, "GROSS PROFIT");
+    var eb = plGet(pl, "EBITDA");
+    var opex = plGet(pl, "TOTAL OPERATING EXPENSES");
+    var gm = plGet(pl, "Gross Margin %");
+    var em = plGet(pl, "EBITDA Margin %");
 
     var cashCur = 0;
     var cashPrv = 0;
     for (var i = 0; i < bsRowsRaw.length; i++) {
       var r = bsRowsRaw[i];
       if (String(r[0] || "").toLowerCase().indexOf("cash & equivalents") !== -1) {
-        cashCur = window.numVal(r[2]);
-        cashPrv = window.numVal(r[3]);
+        cashCur = numVal(r[2]);
+        cashPrv = numVal(r[3]);
       }
     }
     var cashChg = cashCur - cashPrv;
 
     var cardsData = [
-      { lbl: "Net Revenue", val: window.fmtMoney(nr.cur), delta: (nr.varP >= 0 ? "Up " : "Down ") + Math.abs(nr.varP).toFixed(1) + "% vs prior", sub: "YTD: " + window.fmtMoney(nr.ytdCur), dir: nr.varP >= 0 ? "pos" : "neg" },
-      { lbl: "Gross Profit", val: window.fmtMoney(gp.cur), delta: (gp.varP >= 0 ? "Up " : "Down ") + Math.abs(gp.varP).toFixed(1) + "% vs prior", sub: "Margin: " + gm.cur.toFixed(1) + "%", dir: gp.varP >= 0 ? "pos" : "neg" },
-      { lbl: "EBITDA", val: window.fmtMoney(eb.cur), delta: (eb.varP >= 0 ? "Up " : "Down ") + Math.abs(eb.varP).toFixed(1) + "% vs prior", sub: "Margin: " + em.cur.toFixed(1) + "%", dir: eb.cur >= 0 ? "pos" : "neg" },
-      { lbl: "Cash & Equivalents", val: window.fmtMoney(cashCur), delta: (cashChg >= 0 ? "Up " : "Down ") + window.fmtMoney(Math.abs(cashChg)) + " vs prior", sub: "", dir: cashChg >= 0 ? "pos" : "neg" }
+      { lbl: "Net Revenue", val: fmtMoney(nr.cur), delta: (nr.varP >= 0 ? "Up " : "Down ") + Math.abs(nr.varP).toFixed(1) + "% vs prior", sub: "YTD: " + fmtMoney(nr.ytdCur), dir: nr.varP >= 0 ? "pos" : "neg" },
+      { lbl: "Gross Profit", val: fmtMoney(gp.cur), delta: (gp.varP >= 0 ? "Up " : "Down ") + Math.abs(gp.varP).toFixed(1) + "% vs prior", sub: "Margin: " + gm.cur.toFixed(1) + "%", dir: gp.varP >= 0 ? "pos" : "neg" },
+      { lbl: "EBITDA", val: fmtMoney(eb.cur), delta: (eb.varP >= 0 ? "Up " : "Down ") + Math.abs(eb.varP).toFixed(1) + "% vs prior", sub: "Margin: " + em.cur.toFixed(1) + "%", dir: eb.cur >= 0 ? "pos" : "neg" },
+      { lbl: "Cash & Equivalents", val: fmtMoney(cashCur), delta: (cashChg >= 0 ? "Up " : "Down ") + fmtMoney(Math.abs(cashChg)) + " vs prior", sub: "", dir: cashChg >= 0 ? "pos" : "neg" }
     ];
 
     var grid = document.getElementById("kpi-grid");
@@ -454,20 +461,20 @@ window.loadSummary = function () {
     } else {
       for (var g = 0; g < flags.length; g++) {
         var fr = flags[g];
-        var cls = window.favClass(fr.varD, fr.label);
+        var cls = favClass(fr.varD, fr.label);
         var sev = Math.abs(fr.varP) >= 40 ? "red" : (Math.abs(fr.varP) >= 15 ? "amber" : "green");
         var adiv = document.createElement("div");
         adiv.className = "alert alert-" + sev;
         var ahtml = "<div class=\"alert-dot dot-" + sev + "\"></div>";
         ahtml += "<div class=\"alert-name\">" + fr.label + "</div>";
-        ahtml += "<span class=\"" + cls + "\">" + window.fmtMoney(fr.varD) + "</span>&nbsp;";
+        ahtml += "<span class=\"" + cls + "\">" + fmtMoney(fr.varD) + "</span>&nbsp;";
         ahtml += "<span class=\"" + cls + "\">" + (fr.varP > 0 ? "+" : "") + fr.varP.toFixed(1) + "%</span>";
         adiv.innerHTML = ahtml;
         alertsEl.appendChild(adiv);
       }
     }
 
-    window.destroyChart("rev");
+    destroyChart("rev");
     window.charts.rev = new Chart(document.getElementById("rev-chart"), {
       type: "bar",
       data: {
@@ -478,38 +485,42 @@ window.loadSummary = function () {
         ]
       },
       options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return window.fmtMoney(c.raw); } } } },
-        scales: { y: { ticks: { callback: function (v) { return window.fmtMoney(v); }, font: { size: 10 } } }, x: { ticks: { font: { size: 11 } }, grid: { display: false } } }
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return fmtMoney(c.raw); } } } },
+        scales: {
+          y: { ticks: { callback: function (v) { return fmtMoney(v); }, font: { size: 10 } } },
+          x: { ticks: { font: { size: 11 } }, grid: { display: false } }
+        }
       }
     });
     document.getElementById("leg-cur").textContent = window.periodLabels.cur;
     document.getElementById("leg-prv").textContent = window.periodLabels.prior;
 
-    window.generateNarrative(nr, gp, eb, opex, gm, em, cashCur, cashChg);
-    window.setLoaded("summary");
+    generateNarrative(nr, gp, eb, opex, gm, em, cashCur, cashChg);
+    setLoaded("summary");
   }, function (e) {
-    window.setError("summary", "Could not load summary: " + e.message);
+    setError("summary", "Could not load summary: " + e.message);
   });
-};
+}
 
-window.fallbackNarrative = function (nr, gp, eb, opex, cashCur, cashChg) {
-  var p1 = window.periodLabels.cur + " results show net revenue of " + window.fmtMoney(nr.cur) + ", " + (nr.varP >= 0 ? "up" : "down") + " " + Math.abs(nr.varP).toFixed(1) + "% versus " + window.periodLabels.prior + ". Gross profit came in at " + window.fmtMoney(gp.cur) + ". EBITDA was " + window.fmtMoney(eb.cur) + " compared to " + window.fmtMoney(eb.prv) + " in the prior period.";
-  var p2 = "Operating expenses totaled " + window.fmtMoney(opex.cur) + ", " + (opex.varP >= 0 ? "up" : "down") + " " + Math.abs(opex.varP).toFixed(1) + "% versus prior.";
-  var p3 = "Cash & equivalents stood at " + window.fmtMoney(cashCur) + ", " + (cashChg >= 0 ? "an increase" : "a decrease") + " of " + window.fmtMoney(Math.abs(cashChg)) + " from the prior period.";
+function fallbackNarrative(nr, gp, eb, opex, cashCur, cashChg) {
+  var p1 = window.periodLabels.cur + " results show net revenue of " + fmtMoney(nr.cur) + ", " + (nr.varP >= 0 ? "up" : "down") + " " + Math.abs(nr.varP).toFixed(1) + "% versus " + window.periodLabels.prior + ". Gross profit came in at " + fmtMoney(gp.cur) + ". EBITDA was " + fmtMoney(eb.cur) + " compared to " + fmtMoney(eb.prv) + " in the prior period.";
+  var p2 = "Operating expenses totaled " + fmtMoney(opex.cur) + ", " + (opex.varP >= 0 ? "up" : "down") + " " + Math.abs(opex.varP).toFixed(1) + "% versus prior.";
+  var p3 = "Cash & equivalents stood at " + fmtMoney(cashCur) + ", " + (cashChg >= 0 ? "an increase" : "a decrease") + " of " + fmtMoney(Math.abs(cashChg)) + " from the prior period.";
   return p1 + "\n\n" + p2 + "\n\n" + p3;
-};
+}
 
-window.generateNarrative = function (nr, gp, eb, opex, gm, em, cashCur, cashChg) {
+function generateNarrative(nr, gp, eb, opex, gm, em, cashCur, cashChg) {
   var promptParts = [];
   promptParts.push("You are a CFO writing a concise executive summary for a board audience.");
   promptParts.push("Write 3 short paragraphs (under 200 words) for " + window.periodLabels.cur + " vs " + window.periodLabels.prior + ". Be direct, professional, no bullet points.");
   promptParts.push("Key figures:");
-  promptParts.push("- Net Revenue: " + window.fmtMoney(nr.cur) + " (" + (nr.varP >= 0 ? "+" : "") + nr.varP.toFixed(1) + "% vs prior) | YTD: " + window.fmtMoney(nr.ytdCur));
-  promptParts.push("- Gross Profit: " + window.fmtMoney(gp.cur) + " | Margin: " + gm.cur.toFixed(1) + "% (prior: " + gm.prv.toFixed(1) + "%)");
-  promptParts.push("- Total OpEx: " + window.fmtMoney(opex.cur) + " (" + (opex.varP >= 0 ? "+" : "") + opex.varP.toFixed(1) + "% vs prior)");
-  promptParts.push("- EBITDA: " + window.fmtMoney(eb.cur) + " (" + em.cur.toFixed(1) + "% margin) vs " + window.fmtMoney(eb.prv) + " prior");
-  promptParts.push("- Cash: " + window.fmtMoney(cashCur) + " (" + (cashChg >= 0 ? "+" : "") + window.fmtMoney(cashChg) + " vs prior)");
+  promptParts.push("- Net Revenue: " + fmtMoney(nr.cur) + " (" + (nr.varP >= 0 ? "+" : "") + nr.varP.toFixed(1) + "% vs prior) | YTD: " + fmtMoney(nr.ytdCur));
+  promptParts.push("- Gross Profit: " + fmtMoney(gp.cur) + " | Margin: " + gm.cur.toFixed(1) + "% (prior: " + gm.prv.toFixed(1) + "%)");
+  promptParts.push("- Total OpEx: " + fmtMoney(opex.cur) + " (" + (opex.varP >= 0 ? "+" : "") + opex.varP.toFixed(1) + "% vs prior)");
+  promptParts.push("- EBITDA: " + fmtMoney(eb.cur) + " (" + em.cur.toFixed(1) + "% margin) vs " + fmtMoney(eb.prv) + " prior");
+  promptParts.push("- Cash: " + fmtMoney(cashCur) + " (" + (cashChg >= 0 ? "+" : "") + fmtMoney(cashChg) + " vs prior)");
   var prompt = promptParts.join("\n");
 
   fetch("https://api.anthropic.com/v1/messages", {
@@ -525,60 +536,60 @@ window.generateNarrative = function (nr, gp, eb, opex, gm, em, cashCur, cashChg)
         if (data.content[i].type === "text") { txt = data.content[i].text; break; }
       }
     }
-    document.getElementById("narrative").textContent = txt || window.fallbackNarrative(nr, gp, eb, opex, cashCur, cashChg);
+    document.getElementById("narrative").textContent = txt || fallbackNarrative(nr, gp, eb, opex, cashCur, cashChg);
   }, function () {
-    document.getElementById("narrative").textContent = window.fallbackNarrative(nr, gp, eb, opex, cashCur, cashChg);
+    document.getElementById("narrative").textContent = fallbackNarrative(nr, gp, eb, opex, cashCur, cashChg);
   });
-};
+}
 
-window.bsGet = function (bsRows, label) {
+function bsGet(bsRows, label) {
   var cur = 0;
   var prv = 0;
   for (var i = 0; i < bsRows.length; i++) {
     var r = bsRows[i];
     if (String(r[0] || "").toLowerCase().replace(/^\s+|\s+$/g, "") === label.toLowerCase()) {
-      cur = window.numVal(r[2]);
-      prv = window.numVal(r[3]);
+      cur = numVal(r[2]);
+      prv = numVal(r[3]);
     }
   }
   return { cur: cur, prv: prv };
-};
+}
 
-window.cfGet = function (cfRows, label) {
+function cfGet(cfRows, label) {
   var cur = 0;
   for (var i = 0; i < cfRows.length; i++) {
     var r = cfRows[i];
-    if (String(r[0] || "").toLowerCase().indexOf(label.toLowerCase()) !== -1) { cur = window.numVal(r[2] || r[1]); }
+    if (String(r[0] || "").toLowerCase().indexOf(label.toLowerCase()) !== -1) { cur = numVal(r[2] || r[1]); }
   }
   return cur;
-};
+}
 
-window.loadKPI = function () {
+function loadKPI() {
   document.getElementById("kpi-loading").style.display = "flex";
   document.getElementById("kpi-content").style.display = "none";
-  return Promise.all([window.fetchRange("CALC_PL!A1:H80"), window.fetchRange("CALC_BS!A1:H80"), window.fetchRange("CALC_CF!A1:H60")]).then(function (results) {
-    var pl = window.parsePLRows(results[0]);
+  return Promise.all([fetchRange("CALC_PL!A1:H80"), fetchRange("CALC_BS!A1:H80"), fetchRange("CALC_CF!A1:H60")]).then(function (results) {
+    var pl = parsePLRows(results[0]);
     var bsRows = results[1];
     var cfRows = results[2];
 
-    var nr = window.plGet(pl, "TOTAL NET REVENUE");
-    var gp = window.plGet(pl, "GROSS PROFIT");
-    var eb = window.plGet(pl, "EBITDA");
-    var ebit = window.plGet(pl, "EBIT");
-    var ni = window.plGet(pl, "NET INCOME");
-    var opex = window.plGet(pl, "TOTAL OPERATING EXPENSES");
-    var cogs = window.plGet(pl, "Cost of Goods Sold");
+    var nr = plGet(pl, "TOTAL NET REVENUE");
+    var gp = plGet(pl, "GROSS PROFIT");
+    var eb = plGet(pl, "EBITDA");
+    var ebit = plGet(pl, "EBIT");
+    var ni = plGet(pl, "NET INCOME");
+    var opex = plGet(pl, "TOTAL OPERATING EXPENSES");
+    var cogs = plGet(pl, "Cost of Goods Sold");
 
-    var cash = window.bsGet(bsRows, "Cash & Equivalents");
-    var ar = window.bsGet(bsRows, "Accounts Receivable");
-    var totalCurAssets = window.bsGet(bsRows, "TOTAL CURRENT ASSETS");
-    var totalAssets = window.bsGet(bsRows, "TOTAL ASSETS");
-    var ap = window.bsGet(bsRows, "Accounts Payable");
-    var totalCurLiab = window.bsGet(bsRows, "TOTAL CURRENT LIABILITIES");
-    var totalLiab = window.bsGet(bsRows, "TOTAL LIABILITIES");
-    var totalEquity = window.bsGet(bsRows, "TOTAL EQUITY");
-    var otherExpense = window.plGet(pl, "Other Expense");
-    var netCashOps = window.cfGet(cfRows, "NET CASH FROM OPERATIONS");
+    var cash = bsGet(bsRows, "Cash & Equivalents");
+    var ar = bsGet(bsRows, "Accounts Receivable");
+    var totalCurAssets = bsGet(bsRows, "TOTAL CURRENT ASSETS");
+    var totalAssets = bsGet(bsRows, "TOTAL ASSETS");
+    var ap = bsGet(bsRows, "Accounts Payable");
+    var totalCurLiab = bsGet(bsRows, "TOTAL CURRENT LIABILITIES");
+    var totalLiab = bsGet(bsRows, "TOTAL LIABILITIES");
+    var totalEquity = bsGet(bsRows, "TOTAL EQUITY");
+    var otherExpense = plGet(pl, "Other Expense");
+    var netCashOps = cfGet(cfRows, "NET CASH FROM OPERATIONS");
 
     var days = 30;
     function ratio(a, b) { return b ? a / b : 0; }
@@ -632,7 +643,7 @@ window.loadKPI = function () {
       var d = deltaTxt(curVal, prvVal, isPctVal);
       var fmtVal;
       if (isPctVal) { fmtVal = curVal.toFixed(2) + "%"; }
-      else if (isCurrency) { fmtVal = window.fmtMoney(curVal); }
+      else if (isCurrency) { fmtVal = fmtMoney(curVal); }
       else { fmtVal = curVal.toFixed(decimals !== undefined ? decimals : 2); }
       return "<div class=\"kpi-card\"><div class=\"kpi-label\">" + label + "</div><div class=\"kpi-value\" style=\"font-size:18px;\">" + fmtVal + "</div><div class=\"kpi-sub " + d.dir + "\">" + d.html + "</div></div>";
     }
@@ -672,67 +683,156 @@ window.loadKPI = function () {
     html += "</div></div>";
 
     document.getElementById("kpi-sections").innerHTML = html;
-    window.setLoaded("kpi");
+    setLoaded("kpi");
   }, function (e) {
-    window.setError("kpi", "Could not load KPIs: " + e.message);
+    setError("kpi", "Could not load KPIs: " + e.message);
   });
-};
+}
 
-window.loadPL = function () {
+function loadPL() {
   document.getElementById("pl-loading").style.display = "flex";
   document.getElementById("pl-content").style.display = "none";
-  return window.fetchRange("CALC_PL with Sub-accounts!A1:H300").then(function (rows) {
+  return fetchRange("CALC_PL with Sub-accounts!A1:H300").then(function (rows) {
     var headers = rows[0] || [];
     var periodCur = headers[2] || window.periodLabels.cur || "Current";
     var periodPrv = headers[3] || window.periodLabels.prior || "Prior";
     var colHeaders = ["Line Item", periodCur, periodPrv, "Current YTD", "Prior YTD", "Variance $", "Variance %"];
     var dataRows = [];
+
+    var countCategory = 0;
+    var countSubaccount = 0;
+    var countTotal = 0;
+    var countHeader = 0;
+    var countSkipZero = 0;
+    var countSkipBlank = 0;
+
     for (var i = 1; i < rows.length; i++) {
       var r = rows[i];
-      if (!r[0]) { continue; }
-      var label = String(r[0]).replace(/^-+\s*/, "").replace(/\s*-+$/, "");
-      if (!label || label === "Row Label") { continue; }
-      var category = String(r[1] || "").replace(/^\s+|\s+$/g, "");
-      var ll = label.toLowerCase();
-      var isTotal = ll.indexOf("total") !== -1 || ll.indexOf("gross profit") !== -1 || ll.indexOf("net income") !== -1 || ll.indexOf("ebitda") !== -1 || ll.indexOf("ebit") !== -1 || ll.indexOf("income before") !== -1;
-      var isSectionHeader = /^(REVENUE|COST OF|OPERATING EXP|DEPRECIATION|OTHER INCOME|FINANCING)/i.test(label) && !window.numVal(r[2]) && !window.numVal(r[3]);
-      // Category row: has a non-blank Report Category AND it's not a total/section header
-      var isCategoryRow = category !== "" && !isTotal && !isSectionHeader;
-      // Subaccount row: blank Report Category, sits beneath a category row
-      var isSubaccount = category === "" && !isTotal && !isSectionHeader;
 
-      // Skip subaccounts where BOTH current and prior are exactly zero
-      if (isSubaccount && window.numVal(r[2]) === 0 && window.numVal(r[3]) === 0) { continue; }
-
-      var cellCls = isSubaccount ? "indent" : "";
-      var cells = [{ text: label, cls: cellCls }];
-      for (var c = 2; c < 8; c++) {
-        var raw = r[c] || "";
-        var n = window.numVal(raw);
-        cells.push({ text: raw ? (label.indexOf("%") !== -1 ? raw : window.fmtMoney(n)) : String.fromCharCode(8212), cls: n < 0 ? "neg" : "" });
+      if (!r || r.length < 1) {
+        countSkipBlank = countSkipBlank + 1;
+        continue;
       }
-      var rowClass = isTotal ? "row-total" : (isSectionHeader ? "row-header" : (isCategoryRow ? "row-category" : ""));
+
+      var cellA = r[0];
+      var cellB = r[1];
+      var rawA = "";
+      var rawB = "";
+      if (cellA !== undefined && cellA !== null) { rawA = String(cellA); }
+      if (cellB !== undefined && cellB !== null) { rawB = String(cellB); }
+
+      var rowLabel = rawA.replace(/^-+\s*/, "").replace(/\s*-+$/, "").replace(/^\s+|\s+$/g, "");
+      var categoryRaw = rawB.replace(/^\s+|\s+$/g, "");
+
+      if (rowLabel.length === 0 && categoryRaw.length === 0) {
+        countSkipBlank = countSkipBlank + 1;
+        continue;
+      }
+      if (rowLabel === "Row Label") {
+        countSkipBlank = countSkipBlank + 1;
+        continue;
+      }
+
+      var isSubaccount = (rowLabel.length === 0) && (categoryRaw.length > 0);
+      var displayLabel = "";
+      if (isSubaccount) { displayLabel = categoryRaw; } else { displayLabel = rowLabel; }
+
+      if (displayLabel.length === 0) {
+        countSkipBlank = countSkipBlank + 1;
+        continue;
+      }
+
+      var ll = displayLabel.toLowerCase();
+      var isTotal = false;
+      var isSectionHeader = false;
+
+      if (isSubaccount === false) {
+        if (ll.indexOf("total") !== -1) { isTotal = true; }
+        if (ll.indexOf("gross profit") !== -1) { isTotal = true; }
+        if (ll.indexOf("net income") !== -1) { isTotal = true; }
+        if (ll.indexOf("ebitda") !== -1) { isTotal = true; }
+        if (ll.indexOf("ebit") !== -1) { isTotal = true; }
+        if (ll.indexOf("income before") !== -1) { isTotal = true; }
+
+        var curValCheck = numVal(r[2]);
+        var prvValCheck = numVal(r[3]);
+        var sectionPattern = /^(REVENUE|COST OF|OPERATING EXP|DEPRECIATION|OTHER INCOME|FINANCING)/i;
+        if (sectionPattern.test(displayLabel) && curValCheck === 0 && prvValCheck === 0) {
+          isSectionHeader = true;
+        }
+      }
+
+      var isCategoryRow = false;
+      if (isSubaccount === false && isTotal === false && isSectionHeader === false) {
+        isCategoryRow = true;
+      }
+
+      if (isSubaccount === true) {
+        var subCur = numVal(r[2]);
+        var subPrv = numVal(r[3]);
+        if (subCur === 0 && subPrv === 0) {
+          countSkipZero = countSkipZero + 1;
+          continue;
+        }
+      }
+
+      if (isSubaccount === true) { countSubaccount = countSubaccount + 1; }
+      else if (isTotal === true) { countTotal = countTotal + 1; }
+      else if (isSectionHeader === true) { countHeader = countHeader + 1; }
+      else if (isCategoryRow === true) { countCategory = countCategory + 1; }
+
+      var cellCls = "";
+      if (isSubaccount === true) { cellCls = "indent"; }
+
+      var cells = [];
+      cells.push({ text: displayLabel, cls: cellCls });
+
+      for (var c = 2; c < 8; c++) {
+        var rawCell = r[c];
+        var rawStr = "";
+        if (rawCell !== undefined && rawCell !== null) { rawStr = String(rawCell); }
+        var numericVal = numVal(rawStr);
+        var cellText = "";
+        if (rawStr === "") {
+          cellText = String.fromCharCode(8212);
+        } else if (displayLabel.indexOf("%") !== -1) {
+          cellText = rawStr;
+        } else {
+          cellText = fmtMoney(numericVal);
+        }
+        var cellNegCls = "";
+        if (numericVal < 0) { cellNegCls = "neg"; }
+        cells.push({ text: cellText, cls: cellNegCls });
+      }
+
+      var rowClass = "";
+      if (isTotal === true) { rowClass = "row-total"; }
+      else if (isSectionHeader === true) { rowClass = "row-header"; }
+      else if (isCategoryRow === true) { rowClass = "row-category"; }
+
       dataRows.push({ cells: cells, rowClass: rowClass });
     }
-    window.makeTable(document.getElementById("pl-table"), dataRows, colHeaders);
-    var debugEl = document.createElement("div");
-    debugEl.style.fontSize = "11px";
-    debugEl.style.color = "#94a3b8";
-    debugEl.style.marginTop = "10px";
-    debugEl.textContent = "[debug] fetched: " + rows.length + " | rendered: " + dataRows.length + " | category: " + debugCounts.category + " | subaccount: " + debugCounts.subaccount + " | total: " + debugCounts.total_rows + " | header: " + debugCounts.header + " | skippedZero: " + debugCounts.skippedZero + " | skippedBlank: " + debugCounts.skippedBlank;
-    document.getElementById("pl-content").appendChild(debugEl);
-    window.setLoaded("pl");
+
+    makeTable(document.getElementById("pl-table"), dataRows, colHeaders);
+
+    var debugText = "[debug] fetched: " + rows.length + " | rendered: " + dataRows.length;
+    debugText = debugText + " | category: " + countCategory + " | subaccount: " + countSubaccount;
+    debugText = debugText + " | total: " + countTotal + " | header: " + countHeader;
+    debugText = debugText + " | skippedZero: " + countSkipZero + " | skippedBlank: " + countSkipBlank;
+    document.getElementById("pl-debug").textContent = debugText;
+
+    setLoaded("pl");
   }, function (e) {
-    window.setError("pl", "Could not load P&L: " + e.message);
+    setError("pl", "Could not load P&L: " + e.message);
   });
-};
+}
 
-window.BANNER_LABELS = { "ASSETS": 1, "LIABILITIES": 1, "EQUITY": 1, "CURRENT ASSETS": 1, "LONG-TERM ASSETS": 1, "LONG-TERM ASETS": 1, "CURRENT LIABILITIES": 1, "LONG-TERM LIABILITIES": 1, "LONG-TERM LIABILITES": 1 };
+var BANNER_LABELS = { "ASSETS": true, "LIABILITIES": true, "EQUITY": true, "CURRENT ASSETS": true, "LONG-TERM ASSETS": true, "LONG-TERM ASETS": true, "CURRENT LIABILITIES": true, "LONG-TERM LIABILITIES": true, "LONG-TERM LIABILITES": true };
 
-window.loadBS = function () {
+function loadBS() {
   document.getElementById("bs-loading").style.display = "flex";
   document.getElementById("bs-content").style.display = "none";
-  return window.fetchRange("CALC_BS!A1:H80").then(function (rows) {
+  return fetchRange("CALC_BS!A1:H80").then(function (rows) {
     var assetRows = [];
     var liabRows = [];
     var section = "";
@@ -746,30 +846,29 @@ window.loadBS = function () {
       if (ll.indexOf("opening balance equity") !== -1 || ll.indexOf("current year net income") !== -1) { continue; }
       if (ll.indexOf("asset") !== -1) { section = "assets"; }
       if (ll.indexOf("liabilit") !== -1 || ll.indexOf("equity") !== -1) { section = "liab"; }
-      var isBanner = window.BANNER_LABELS[upperLabel] ? true : false;
-      var v = window.numVal(r[2] || r[1]);
+      var isBanner = BANNER_LABELS[upperLabel] === true;
+      var v = numVal(r[2] || r[1]);
       var isTotal = !isBanner && (ll.indexOf("total") !== -1 || ll.indexOf("subtotal") !== -1);
-      var cleanLabel = label.replace(/^---\s*SUBTOTAL\s*---$/i, label).replace(/^---\s*LINK\s*---$/i, label);
       var cells = [
-        { text: cleanLabel, cls: (!isTotal && !isBanner) ? "indent" : "" },
-        { text: isBanner ? "" : window.fmtMoney(v), cls: v < 0 ? "neg" : "" }
+        { text: label, cls: (!isTotal && !isBanner) ? "indent" : "" },
+        { text: isBanner ? "" : fmtMoney(v), cls: v < 0 ? "neg" : "" }
       ];
       var row = { cells: cells, rowClass: isTotal ? "row-total" : (isBanner ? "row-header" : "") };
       if (section === "assets") { assetRows.push(row); }
       else if (section === "liab") { liabRows.push(row); }
     }
-    window.makeTable(document.getElementById("assets-table"), assetRows, ["Item", "Amount"]);
-    window.makeTable(document.getElementById("liab-table"), liabRows, ["Item", "Amount"]);
-    window.setLoaded("bs");
+    makeTable(document.getElementById("assets-table"), assetRows, ["Item", "Amount"]);
+    makeTable(document.getElementById("liab-table"), liabRows, ["Item", "Amount"]);
+    setLoaded("bs");
   }, function (e) {
-    window.setError("bs", "Could not load Balance Sheet: " + e.message);
+    setError("bs", "Could not load Balance Sheet: " + e.message);
   });
-};
+}
 
-window.loadCF = function () {
+function loadCF() {
   document.getElementById("cf-loading").style.display = "flex";
   document.getElementById("cf-content").style.display = "none";
-  return window.fetchRange("CALC_CF!A1:H60").then(function (rows) {
+  return fetchRange("CALC_CF!A1:H60").then(function (rows) {
     var tableRows = [];
     var cfLabels = [];
     var cfVals = [];
@@ -780,14 +879,14 @@ window.loadCF = function () {
       var label = String(r[0]).replace(/^-+\s*/, "").replace(/\s*-+$/, "");
       if (!label || label === "Row Label") { continue; }
       var ll = label.toLowerCase();
-      var v = window.numVal(r[2] || r[1]);
+      var v = numVal(r[2] || r[1]);
       var isTotal = ll.indexOf("net cash") !== -1 || ll.indexOf("net change") !== -1 || ll.indexOf("ending") !== -1 || ll.indexOf("beginning") !== -1;
       var isReconcil = ll.indexOf("reconcil") !== -1 || ll.indexOf("proof") !== -1 || ll.indexOf("bs cash balance") !== -1;
       var isHeader = ll.indexOf("activities") !== -1 && !r[2] && !r[1];
       tableRows.push({
         cells: [
           { text: label, cls: (!isTotal && !isHeader && !isReconcil) ? "indent" : "" },
-          { text: (r[2] || r[1]) ? window.fmtMoney(v) : String.fromCharCode(8212), cls: v < 0 ? "neg" : (v > 0 ? "pos" : "") }
+          { text: (r[2] || r[1]) ? fmtMoney(v) : String.fromCharCode(8212), cls: v < 0 ? "neg" : (v > 0 ? "pos" : "") }
         ],
         rowClass: isReconcil ? "row-reconcil" : (isTotal ? "row-total" : (isHeader ? "row-header" : ""))
       });
@@ -797,25 +896,25 @@ window.loadCF = function () {
         cfColors.push(v >= 0 ? "#10b981" : "#ef4444");
       }
     }
-    window.makeTable(document.getElementById("cf-table"), tableRows, ["Item", "Amount"]);
-    window.destroyChart("cf");
+    makeTable(document.getElementById("cf-table"), tableRows, ["Item", "Amount"]);
+    destroyChart("cf");
     if (cfVals.length > 0) {
       window.charts.cf = new Chart(document.getElementById("cf-chart"), {
         type: "bar",
         data: { labels: cfLabels, datasets: [{ label: "Cash flow", data: cfVals, backgroundColor: cfColors, borderRadius: 4, borderSkipped: false }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: function (v) { return window.fmtMoney(v); }, font: { size: 11 } } }, x: { ticks: { font: { size: 11 }, maxRotation: 20 }, grid: { display: false } } } }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: function (v) { return fmtMoney(v); }, font: { size: 11 } } }, x: { ticks: { font: { size: 11 }, maxRotation: 20 }, grid: { display: false } } } }
       });
     }
-    window.setLoaded("cf");
+    setLoaded("cf");
   }, function (e) {
-    window.setError("cf", "Could not load Cash Flow: " + e.message);
+    setError("cf", "Could not load Cash Flow: " + e.message);
   });
-};
+}
 
-window.loadForecast = function () {
+function loadForecast() {
   document.getElementById("forecast-loading").style.display = "flex";
   document.getElementById("forecast-content").style.display = "none";
-  return window.fetchRange("Sheet2!A1:P25").then(function (rows) {
+  return fetchRange("Sheet2!A1:P25").then(function (rows) {
     var headers = rows[0] || [];
     var weeks = [];
     for (var h = 1; h < headers.length; h++) { if (headers[h]) { weeks.push(headers[h]); } }
@@ -830,7 +929,7 @@ window.loadForecast = function () {
       var label = String(r[0]);
       var ll = label.toLowerCase();
       var vals = [];
-      for (var v2 = 1; v2 < r.length; v2++) { vals.push(window.numVal(r[v2])); }
+      for (var v2 = 1; v2 < r.length; v2++) { vals.push(numVal(r[v2])); }
       if (ll.indexOf("inflow") !== -1 || ll.indexOf("receipt") !== -1 || ll.indexOf("collection") !== -1 || ll.indexOf("total in") !== -1) {
         for (var x = 0; x < vals.length && x < 13; x++) { inflows[x] += vals[x]; }
       } else if (ll.indexOf("outflow") !== -1 || ll.indexOf("payment") !== -1 || ll.indexOf("disbursement") !== -1 || ll.indexOf("total out") !== -1) {
@@ -841,8 +940,8 @@ window.loadForecast = function () {
       }
       var cells = [{ text: label }];
       for (var c2 = 1; c2 < Math.min(r.length, 8); c2++) {
-        var n2 = window.numVal(r[c2]);
-        cells.push({ text: r[c2] ? window.fmtMoney(n2) : String.fromCharCode(8212), cls: n2 < 0 ? "neg" : "" });
+        var n2 = numVal(r[c2]);
+        cells.push({ text: r[c2] ? fmtMoney(n2) : String.fromCharCode(8212), cls: n2 < 0 ? "neg" : "" });
       }
       tableRows.push({ cells: cells, rowClass: (ll.indexOf("total") !== -1 || ll.indexOf("net") !== -1 || ll.indexOf("ending") !== -1) ? "row-total" : "" });
     }
@@ -857,7 +956,7 @@ window.loadForecast = function () {
       netLine = [];
       for (var ni2 = 0; ni2 < inflows.length; ni2++) { netLine.push(inflows[ni2] - outflows[ni2]); }
     }
-    window.destroyChart("forecast");
+    destroyChart("forecast");
     window.charts.forecast = new Chart(document.getElementById("forecast-chart"), {
       type: "bar",
       data: { labels: wkLabels, datasets: [
@@ -865,46 +964,46 @@ window.loadForecast = function () {
         { label: "Outflows", data: outflows.slice(0, 13).map(function (vv) { return -vv; }), backgroundColor: "#ef4444", borderRadius: 3 },
         { label: "Net", data: netLine, type: "line", borderColor: "#10b981", backgroundColor: "transparent", tension: 0.3, pointRadius: 4, borderWidth: 2 }
       ] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: function (v) { return window.fmtMoney(v); }, font: { size: 11 } } }, x: { ticks: { font: { size: 10 }, maxRotation: 40, autoSkip: false }, grid: { display: false } } } }
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: function (v) { return fmtMoney(v); }, font: { size: 11 } } }, x: { ticks: { font: { size: 10 }, maxRotation: 40, autoSkip: false }, grid: { display: false } } } }
     });
-    window.makeTable(document.getElementById("forecast-table"), tableRows.slice(0, 20), ["Item"].concat(wkLabels.slice(0, 6)));
-    window.setLoaded("forecast");
+    makeTable(document.getElementById("forecast-table"), tableRows.slice(0, 20), ["Item"].concat(wkLabels.slice(0, 6)));
+    setLoaded("forecast");
   }, function (e) {
-    window.setError("forecast", "Could not load forecast: " + e.message);
+    setError("forecast", "Could not load forecast: " + e.message);
   });
-};
+}
 
-window.loadAll = function () {
+function loadAll() {
   document.getElementById("global-error").style.display = "none";
   var connBar = document.getElementById("conn-test");
   connBar.className = "conn-bar";
   connBar.style.display = "block";
   document.getElementById("conn-status").textContent = "connecting...";
 
-  window.fetchRange("PERIOD_CONTROL!A1:B5").then(function (testData) {
+  fetchRange("PERIOD_CONTROL!A1:B5").then(function (testData) {
     connBar.className = "conn-bar ok";
     document.getElementById("conn-status").textContent = "Connected - " + testData.length + " rows from PERIOD_CONTROL";
     setTimeout(function () { connBar.style.display = "none"; }, 3000);
-    return window.loadPeriod();
+    return loadPeriod();
   }, function (e) {
     connBar.className = "conn-bar fail";
     var msg = (e && e.message) ? e.message : "Unknown error";
     document.getElementById("conn-status").textContent = "Connection failed: " + msg;
-    window.setError("summary", "Connection failed: " + msg);
+    setError("summary", "Connection failed: " + msg);
     return Promise.reject(e);
   }).then(function () {
-    window.loadSummary();
-    window.loadKPI();
-    window.loadPL();
-    window.loadBS();
-    window.loadCF();
-    window.loadForecast();
+    loadSummary();
+    loadKPI();
+    loadPL();
+    loadBS();
+    loadCF();
+    loadForecast();
   }, function () {
     return null;
   });
-};
+}
 
-window.loadAll();
+loadAll();
 </script>
 </body>
 </html>
