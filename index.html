@@ -47,8 +47,13 @@
   .row-total td { font-weight: 700; color: #0f172a; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; background: #f8fafc; }
   .row-total td:first-child { color: #0f172a; }
   .row-header td { font-weight: 700; color: #0284c7; background: #e0f2fe; font-size: 11px; letter-spacing: 0.03em; padding-top: 10px; }
-  .row-category td { font-weight: 700; color: #166534; background: #f0fdf4; border-top: 1px solid #bbf7d0; border-bottom: 1px solid #bbf7d0; }
+  .row-category td { font-weight: 700; color: #166534; background: #f0fdf4; border-top: 1px solid #bbf7d0; border-bottom: 1px solid #bbf7d0; cursor: pointer; user-select: none; }
   .row-category td:first-child { color: #166534; }
+  .row-category td:first-child::before { content: "\25B6"; display: inline-block; font-size: 8px; margin-right: 7px; transition: transform 0.15s; color: #4ade80; }
+  .row-category.expanded td:first-child::before { transform: rotate(90deg); }
+  .row-category:hover td { background: #e7fdf0; }
+  .sub-row { display: none; }
+  .sub-row.show { display: table-row; }
   .row-reconcil td { color: #cbd5e1; font-size: 11px; font-style: italic; font-weight: 400; background: #fafbfc; }
   .row-reconcil td:first-child { color: #cbd5e1; }
   .data-table tr:hover td { background: #f8fafc; }
@@ -304,6 +309,13 @@ function makeTable(el, rows, cols) {
     var rowData = rows[r];
     var tr = document.createElement("tr");
     if (rowData.rowClass) { tr.className = rowData.rowClass; }
+    if (rowData.isCategory) {
+      tr.setAttribute("data-group-toggle", rowData.groupId);
+    }
+    if (rowData.isSub) {
+      tr.className = (tr.className ? tr.className + " " : "") + "sub-row";
+      tr.setAttribute("data-group", rowData.groupId);
+    }
     for (var k = 0; k < rowData.cells.length; k++) {
       var cell = rowData.cells[k];
       var td = document.createElement("td");
@@ -689,6 +701,30 @@ function loadKPI() {
   });
 }
 
+function wirePLToggles() {
+  var categoryRows = document.querySelectorAll("#pl-table tr[data-group-toggle]");
+  for (var i = 0; i < categoryRows.length; i++) {
+    var catRow = categoryRows[i];
+    catRow.onclick = function () {
+      var gid = this.getAttribute("data-group-toggle");
+      var subRows = document.querySelectorAll("#pl-table tr[data-group=\"" + gid + "\"]");
+      var willExpand = this.className.indexOf("expanded") === -1;
+      if (willExpand) {
+        this.className = this.className + " expanded";
+      } else {
+        this.className = this.className.replace(" expanded", "");
+      }
+      for (var j = 0; j < subRows.length; j++) {
+        if (willExpand) {
+          subRows[j].className = subRows[j].className + " show";
+        } else {
+          subRows[j].className = subRows[j].className.replace(" show", "").replace("show", "");
+        }
+      }
+    };
+  }
+}
+
 function loadPL() {
   document.getElementById("pl-loading").style.display = "flex";
   document.getElementById("pl-content").style.display = "none";
@@ -705,6 +741,7 @@ function loadPL() {
     var countHeader = 0;
     var countSkipZero = 0;
     var countSkipBlank = 0;
+    var currentGroupId = -1;
 
     for (var i = 1; i < rows.length; i++) {
       var r = rows[i];
@@ -810,10 +847,22 @@ function loadPL() {
       else if (isSectionHeader === true) { rowClass = "row-header"; }
       else if (isCategoryRow === true) { rowClass = "row-category"; }
 
-      dataRows.push({ cells: cells, rowClass: rowClass });
+      var rowObj = { cells: cells, rowClass: rowClass };
+      if (isCategoryRow === true) {
+        currentGroupId = currentGroupId + 1;
+        rowObj.isCategory = true;
+        rowObj.groupId = "grp" + currentGroupId;
+      }
+      if (isSubaccount === true) {
+        rowObj.isSub = true;
+        rowObj.groupId = "grp" + currentGroupId;
+      }
+
+      dataRows.push(rowObj);
     }
 
     makeTable(document.getElementById("pl-table"), dataRows, colHeaders);
+    wirePLToggles();
 
     var debugText = "[debug] fetched: " + rows.length + " | rendered: " + dataRows.length;
     debugText = debugText + " | category: " + countCategory + " | subaccount: " + countSubaccount;
