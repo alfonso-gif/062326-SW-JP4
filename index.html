@@ -185,13 +185,8 @@
   <div id="forecast-loading" class="loading"><div class="spinner"></div>Loading forecast...</div>
   <div id="forecast-content" style="display:none;">
     <div class="card">
-      <div class="card-title">13-week cash forecast</div>
-      <div class="legend">
-        <span><span class="legend-dot" style="background:#0ea5e9"></span>Inflows</span>
-        <span><span class="legend-dot" style="background:#ef4444"></span>Outflows</span>
-        <span><span class="legend-dot" style="background:#10b981"></span>Net</span>
-      </div>
-      <div class="chart-wrap-tall"><canvas id="forecast-chart"></canvas></div>
+      <div class="card-title">Ending cash balance</div>
+      <div class="chart-wrap-tall"><canvas id="endcash-chart"></canvas></div>
     </div>
     <div class="card"><div class="card-title">Weekly detail</div><div style="overflow-x:auto;"><table class="data-table" id="forecast-table"></table></div></div>
   </div>
@@ -1048,6 +1043,9 @@ function loadForecast() {
         return;
       }
 
+      // Find the "Actual"/"Forecast" tag row, usually right above the header row
+      var tagRow = rows[headerRowIdx - 1] || [];
+
       var weekStartRow = rows[headerRowIdx + 1] || [];
       var dataStartIdx = headerRowIdx + 3;
       var headerRowArr = rows[headerRowIdx] || [];
@@ -1057,6 +1055,10 @@ function loadForecast() {
       for (var c = labelColIdx + 1; c < numCols; c++) {
         var startTxt = weekStartRow[c];
         if (startTxt === undefined || startTxt === null || startTxt === "") { startTxt = "Wk " + (c - labelColIdx); }
+        var tagTxt = tagRow[c];
+        if (tagTxt !== undefined && tagTxt !== null && String(tagTxt).replace(/^\s+|\s+$/g, "") !== "") {
+          startTxt = String(tagTxt).replace(/^\s+|\s+$/g, "") + " \u00B7 " + startTxt;
+        }
         colLabels.push(startTxt);
       }
 
@@ -1064,6 +1066,7 @@ function loadForecast() {
       var totalInRow = null;
       var totalOutRow = null;
       var netChangeRow = null;
+      var endCashRow = null;
 
       var tableRows = [];
 
@@ -1076,7 +1079,18 @@ function loadForecast() {
         var label = rawLabelStr.replace(/^\s+|\s+$/g, "");
         if (label === "") { continue; }
         var ll = label.toLowerCase();
-        var isIndented = /^\s{2,}/.test(rawLabelStr);
+        // Detect indentation either from leading whitespace OR from a separate indented column to the left of labelColIdx
+        var leadingSpaces = rawLabelStr.length - rawLabelStr.replace(/^\s+/, "").length;
+        var isIndented = leadingSpaces >= 2;
+        if (!isIndented && labelColIdx > 0) {
+          // Check if there's content in a column further right than labelColIdx that holds the "parent" version
+          // (covers sheets where subaccount name sits one column further right than category name)
+          for (var pc = 0; pc < labelColIdx; pc++) {
+            if (r[pc] !== undefined && r[pc] !== null && String(r[pc]).replace(/^\s+|\s+$/g, "") !== "") {
+              isIndented = false;
+            }
+          }
+        }
 
         var isTotalRow = (ll.indexOf("total cash") !== -1) || (ll.indexOf("net change") !== -1) || (ll.indexOf("ending cash") !== -1) || (ll.indexOf("beginning cash") !== -1) || (ll.indexOf("minimum cash") !== -1) || (ll.indexOf("surplus") !== -1) || (ll.indexOf("funding needed") !== -1);
         var isParentCategory = ((ll.indexOf("cash out -") !== -1) || (ll.indexOf("cash in -") !== -1)) && (isIndented === false);
@@ -1107,34 +1121,24 @@ function loadForecast() {
         if (ll === "total cash in") { totalInRow = r; }
         if (ll === "total cash out") { totalOutRow = r; }
         if (ll.indexOf("net change") !== -1) { netChangeRow = r; }
+        if (ll.indexOf("ending cash") !== -1 && ll.indexOf("balance") === -1) { endCashRow = r; }
       }
 
       makeTable(document.getElementById("forecast-table"), tableRows, ["Line Item"].concat(colLabels));
 
-      var chartLabels = [];
-      var inflowsData = [];
-      var outflowsData = [];
-      var netData = [];
-      var skipActualCols = 2;
-      var chartStartCol = labelColIdx + 1 + skipActualCols;
-      for (var w = chartStartCol; w < numCols; w++) {
-        var wLabel = weekStartRow[w];
-        if (wLabel === undefined || wLabel === null || wLabel === "") { wLabel = "Wk " + (w - chartStartCol + 1); }
-        chartLabels.push(wLabel);
-        inflowsData.push(totalInRow ? numVal(totalInRow[w]) : 0);
-        outflowsData.push(totalOutRow ? (numVal(totalOutRow[w]) * -1) : 0);
-        netData.push(netChangeRow ? numVal(netChangeRow[w]) : 0);
+      destroyChart("endcash");
+      var endCashLabels = [];
+      var endCashData = [];
+      for (var ec = labelColIdx + 1; ec < numCols; ec++) {
+        endCashLabels.push(colLabels[ec - labelColIdx - 1]);
+        endCashData.push(endCashRow ? numVal(endCashRow[ec]) : 0);
       }
-
-      destroyChart("forecast");
-      window.charts.forecast = new Chart(document.getElementById("forecast-chart"), {
-        type: "bar",
+      window.charts.endcash = new Chart(document.getElementById("endcash-chart"), {
+        type: "line",
         data: {
-          labels: chartLabels,
+          labels: endCashLabels,
           datasets: [
-            { label: "Inflows", data: inflowsData, backgroundColor: "#0ea5e9", borderRadius: 3 },
-            { label: "Outflows", data: outflowsData, backgroundColor: "#ef4444", borderRadius: 3 },
-            { label: "Net", data: netData, type: "line", borderColor: "#10b981", backgroundColor: "transparent", tension: 0.3, pointRadius: 4, borderWidth: 2 }
+            { label: "Ending Cash", data: endCashData, borderColor: "#0ea5e9", backgroundColor: "rgba(14,165,233,0.08)", tension: 0.3, fill: true, pointRadius: 3 }
           ]
         },
         options: {
