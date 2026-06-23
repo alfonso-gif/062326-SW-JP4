@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>StemWave Financial Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f6f8; color: #0f172a; font-size: 13px; min-height: 100vh; }
+
+  .dash-header { background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .header-brand { display: flex; align-items: center; gap: 14px; }
+  .logo-mark { width: 38px; height: 38px; background: linear-gradient(135deg, #0ea5e9, #0284c7); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 800; color: #fff; flex-shrink: 0; }
+  .dash-title { font-size: 16px; font-weight: 700; }
+  .dash-sub { font-size: 11px; color: #64748b; margin-top: 2px; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .period-badge { font-size: 16px; padding: 7px 16px; border-radius: 6px; background: #e0f2fe; color: #0284c7; border: 1px solid #bae6fd; font-weight: 700; }
+  .refresh-btn { font-size: 12px; padding: 6px 13px; cursor: pointer; border: 1px solid #e2e8f0; background: #fff; border-radius: 7px; color: #64748b; }
+  .refresh-btn:hover { background: #f1f5f9; color: #0f172a; }
+
+  .tab-bar { display: flex; gap: 2px; border-bottom: 1px solid #e2e8f0; background: #fff; padding: 0 24px; overflow-x: auto; }
+  .tab { font-size: 12px; padding: 12px 16px; cursor: pointer; border: none; background: none; color: #64748b; border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 500; white-space: nowrap; }
+  .tab.active { color: #0ea5e9; border-bottom-color: #0ea5e9; }
+  .tab:hover { color: #0f172a; }
+
+  .section { display: none; padding: 20px 24px 32px; }
+  .section.active { display: block; }
+
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px 18px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .card-title { font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.07em; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0; }
+
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .kpi-card { background: #fff; border-radius: 10px; padding: 14px 16px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .kpi-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; font-weight: 600; }
+  .kpi-value { font-size: 20px; font-weight: 700; line-height: 1; letter-spacing: -0.5px; }
+  .kpi-sub { font-size: 11px; margin-top: 6px; font-weight: 500; }
+  .kpi-sub2 { font-size: 11px; margin-top: 3px; color: #64748b; }
+  .kpi-pos { color: #10b981; }
+  .kpi-neg { color: #ef4444; }
+  .kpi-neu { color: #64748b; }
+
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .data-table th { font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; text-align: right; padding: 7px 10px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+  .data-table th:first-child { text-align: left; }
+  .data-table td { padding: 5px 10px; text-align: right; border-bottom: 1px solid #f1f5f9; font-variant-numeric: tabular-nums; }
+  .data-table td:first-child { text-align: left; color: #475569; }
+  .row-total td { font-weight: 700; color: #0f172a; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; background: #f8fafc; }
+  .row-total td:first-child { color: #0f172a; }
+  .row-header td { font-weight: 700; color: #0284c7; background: #e0f2fe; font-size: 11px; letter-spacing: 0.03em; padding-top: 10px; }
+  .row-category td { font-weight: 700; color: #166534; background: #f0fdf4; border-top: 1px solid #bbf7d0; border-bottom: 1px solid #bbf7d0; }
+  .row-category td:first-child { color: #166534; }
+  .row-reconcil td { color: #cbd5e1; font-size: 11px; font-style: italic; font-weight: 400; background: #fafbfc; }
+  .row-reconcil td:first-child { color: #cbd5e1; }
+  .data-table tr:hover td { background: #f8fafc; }
+  .row-total:hover td, .row-header:hover td, .row-category:hover td, .row-reconcil:hover td { background: inherit; }
+  .indent { padding-left: 24px !important; }
+  .indent2 { padding-left: 44px !important; color: #94a3b8 !important; font-size: 11.5px; }
+
+  .chart-wrap { position: relative; width: 100%; height: 260px; }
+  .chart-wrap-tall { position: relative; width: 100%; height: 300px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+  .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem; color: #64748b; gap: 12px; }
+  .spinner { width: 28px; height: 28px; border: 2px solid #e2e8f0; border-top-color: #0ea5e9; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-msg { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 16px; color: #dc2626; margin-bottom: 14px; }
+  .conn-bar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 16px; margin: 0 24px 14px; font-size: 12px; color: #64748b; }
+  .conn-bar.ok { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+  .conn-bar.fail { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+
+  .neg { color: #ef4444; }
+  .pos { color: #10b981; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 12px; font-size: 12px; color: #64748b; }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+  .alert { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 7px; margin-bottom: 6px; font-size: 12px; border: 1px solid; }
+  .alert-red { background: #fef2f2; border-color: #fecaca; }
+  .alert-amber { background: #fffbeb; border-color: #fde68a; }
+  .alert-green { background: #f0fdf4; border-color: #bbf7d0; }
+  .alert-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .dot-red { background: #ef4444; } .dot-amber { background: #f59e0b; } .dot-green { background: #10b981; }
+  .alert-name { flex: 1; font-weight: 500; }
+
+  .narrative { background: #e0f2fe; border-left: 3px solid #0ea5e9; border-radius: 0 8px 8px 0; padding: 14px 16px; font-size: 12px; line-height: 1.8; color: #334155; white-space: pre-wrap; }
+
+  @media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } .kpi-value { font-size: 17px; } .tab { padding: 8px 10px; font-size: 11px; } }
+</style>
+</head>
+<body>
+
+<div class="dash-header">
+  <div class="header-brand">
+    <div class="logo-mark">SW</div>
+    <div>
+      <div class="dash-title">Kostopoulos Investment Holdings — StemWave</div>
+      <div class="dash-sub">Executive Financial Dashboard &middot; Live from Google Sheets</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div id="period-label" class="period-badge">Loading period...</div>
+    <button class="refresh-btn" onclick="loadAll()">Refresh</button>
+  </div>
+</div>
+
+<div id="conn-test" class="conn-bar">Testing connection to Google Sheets... <span id="conn-status"></span></div>
+<div id="global-error" class="error-msg" style="display:none; margin: 0 24px 14px;"></div>
+
+<div class="tab-bar">
+  <button class="tab active" onclick="showTab('summary', this)">Executive Summary</button>
+  <button class="tab" onclick="showTab('kpi', this)">KPIs</button>
+  <button class="tab" onclick="showTab('pl', this)">P&amp;L</button>
+  <button class="tab" onclick="showTab('bs', this)">Balance Sheet</button>
+  <button class="tab" onclick="showTab('cf', this)">Cash Flow</button>
+  <button class="tab" onclick="showTab('forecast', this)">13-Week</button>
+</div>
+
+<div id="section-summary" class="section active">
+  <div id="summary-loading" class="loading"><div class="spinner"></div>Fetching data...</div>
+  <div id="summary-content" style="display:none;">
+    <div class="kpi-grid" id="kpi-grid"></div>
+    <div class="two-col">
+      <div class="card">
+        <div class="card-title">Top Variance Alerts</div>
+        <div id="top-alerts"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Revenue vs. OpEx</div>
+        <div class="chart-wrap"><canvas id="rev-chart"></canvas></div>
+        <div class="legend">
+          <span><span class="legend-dot" style="background:#0ea5e9"></span><span id="leg-cur">Current</span></span>
+          <span><span class="legend-dot" style="background:#bae6fd"></span><span id="leg-prv">Prior</span></span>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">AI Period Narrative</div>
+      <div class="narrative" id="narrative">Generating summary...</div>
+    </div>
+  </div>
+</div>
+
+<div id="section-kpi" class="section">
+  <div id="kpi-loading" class="loading"><div class="spinner"></div>Loading KPIs...</div>
+  <div id="kpi-content" style="display:none;">
+    <div id="kpi-sections"></div>
+  </div>
+</div>
+
+<div id="section-pl" class="section">
+  <div id="pl-loading" class="loading"><div class="spinner"></div>Loading P&amp;L...</div>
+  <div id="pl-content" style="display:none;">
+    <div class="card"><div class="card-title">Profit &amp; Loss</div><table class="data-table" id="pl-table"></table></div>
+  </div>
+</div>
+
+<div id="section-bs" class="section">
+  <div id="bs-loading" class="loading"><div class="spinner"></div>Loading Balance Sheet...</div>
+  <div id="bs-content" style="display:none;">
+    <div class="two-col">
+      <div class="card"><div class="card-title">Assets</div><table class="data-table" id="assets-table"></table></div>
+      <div class="card"><div class="card-title">Liabilities &amp; Equity</div><table class="data-table" id="liab-table"></table></div>
+    </div>
+  </div>
+</div>
+
+<div id="section-cf" class="section">
+  <div id="cf-loading" class="loading"><div class="spinner"></div>Loading Cash Flow...</div>
+  <div id="cf-content" style="display:none;">
+    <div class="card"><div class="card-title">Cash flow statement</div><table class="data-table" id="cf-table"></table></div>
+    <div class="card"><div class="card-title">Cash flow waterfall</div><div class="chart-wrap-tall"><canvas id="cf-chart"></canvas></div></div>
+  </div>
+</div>
+
+<div id="section-forecast" class="section">
+  <div id="forecast-loading" class="loading"><div class="spinner"></div>Loading forecast...</div>
+  <div id="forecast-content" style="display:none;">
+    <div class="card">
+      <div class="card-title">13-week cash forecast</div>
+      <div class="legend">
+        <span><span class="legend-dot" style="background:#0ea5e9"></span>Inflows</span>
+        <span><span class="legend-dot" style="background:#ef4444"></span>Outflows</span>
+        <span><span class="legend-dot" style="background:#10b981"></span>Net</span>
+      </div>
+      <div class="chart-wrap-tall"><canvas id="forecast-chart"></canvas></div>
+    </div>
+    <div class="card"><div class="card-title">Weekly detail</div><div style="overflow-x:auto;"><table class="data-table" id="forecast-table"></table></div></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script type="text/javascript">
+window.SHEET_ID = "1wRro4QgZEUn_RPLMas1S_C5gdz8WJDM0No8n8KgDjLE";
+window.charts = {};
+Chart.defaults.color = "#64748b";
+Chart.defaults.borderColor = "#e2e8f0";
+
+window.showTab = function (name, el) {
+  var sections = document.querySelectorAll(".section");
+  for (var i = 0; i < sections.length; i++) { sections[i].className = "section"; }
+  var tabs = document.querySelectorAll(".tab");
+  for (var j = 0; j < tabs.length; j++) { tabs[j].className = "tab"; }
+  document.getElementById("section-" + name).className = "section active";
+  el.className = "tab active";
+};
+
+window.parseCSV = function (text) {
+  var rows = [];
+  var lines = text.split(String.fromCharCode(10));
+  for (var li = 0; li < lines.length; li++) {
+    var line = lines[li];
+    if (line.replace(/\s/g, "") === "") { continue; }
+    var cells = [];
+    var cur = "";
+    var inQ = false;
+    for (var i = 0; i < line.length; i++) {
+      var ch = line.charAt(i);
+      if (ch === String.fromCharCode(34)) { inQ = !inQ; }
+      else if (ch === "," && !inQ) { cells.push(cur.replace(/^\s+|\s+$/g, "")); cur = ""; }
+      else { cur = cur + ch; }
+    }
+    cells.push(cur.replace(/^\s+|\s+$/g, ""));
+    rows.push(cells);
+  }
+  return rows;
+};
+
+window.fetchSheet = function (sheetName) {
+  var encodedName = encodeURIComponent(sheetName).replace(/%20/g, "+");
+  var url = "https://docs.google.com/spreadsheets/d/" + window.SHEET_ID + "/gviz/tq?tqx=out:csv&sheet=" + encodedName;
+  return fetch(url).then(function (res) {
+    if (!res.ok) {
+      throw new Error("Could not load sheet: " + sheetName + " (" + res.status + ")");
+    }
+    return res.text();
+  }).then(function (text) {
+    if (text.indexOf("signin") !== -1 || text.indexOf("<html") !== -1) {
+      throw new Error("Sheet not accessible: " + sheetName);
+    }
+    return window.parseCSV(text);
+  });
+};
+
+window.fetchRange = function (range) {
+  var sheetName = range.indexOf("!") !== -1 ? range.split("!")[0] : range;
+  return window.fetchSheet(sheetName);
+};
+
+window.numVal = function (v) {
+  if (!v && v !== 0) { return 0; }
+  var s = String(v);
+  s = s.replace(/[$,\s%]/g, "");
+  var neg = false;
+  if (s.indexOf("(") !== -1) { neg = true; s = s.replace(/[()]/g, ""); }
+  var n = parseFloat(s);
+  if (isNaN(n)) { return 0; }
+  return neg ? -n : n;
+};
+
+window.fmtMoney = function (v) {
+  var n = typeof v === "number" ? v : window.numVal(v);
+  if (n === 0 && v === "") { return String.fromCharCode(8212); }
+  var abs = Math.abs(n);
+  var sign = n < 0 ? "-" : "";
+  if (abs >= 1000000) { return sign + "$" + (abs / 1000000).toFixed(2) + "M"; }
+  if (abs >= 1000) { return sign + "$" + (abs / 1000).toFixed(1) + "K"; }
+  return sign + "$" + abs.toFixed(0);
+};
+
+window.destroyChart = function (id) {
+  if (window.charts[id]) { window.charts[id].destroy(); delete window.charts[id]; }
+};
+
+window.makeTable = function (el, rows, cols) {
+  if (!el) { return; }
+  el.innerHTML = "";
+  var thead = document.createElement("thead");
+  var hrow = document.createElement("tr");
+  for (var c = 0; c < cols.length; c++) {
+    var th = document.createElement("th");
+    th.textContent = cols[c];
+    hrow.appendChild(th);
+  }
+  thead.appendChild(hrow);
+  el.appendChild(thead);
+  var tbody = document.createElement("tbody");
+  for (var r = 0; r < rows.length; r++) {
+    var row = rows[r];
+    var tr = document.createElement("tr");
+    if (row.rowClass) { tr.className = row.rowClass; }
+    for (var k = 0; k < row.cells.length; k++) {
+      var cell = row.cells[k];
+      var td = document.createElement("td");
+      td.textContent = cell.text;
+      if (cell.cls) { td.className = cell.cls; }
+      tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  el.appendChild(tbody);
+};
+
+window.setLoaded = function (section) {
+  document.getElementById(section + "-loading").style.display = "none";
+  document.getElementById(section + "-content").style.display = "block";
+};
+
+window.setError = function (section, msg) {
+  var el = document.getElementById(section + "-loading");
+  el.innerHTML = "";
+  var div = document.createElement("div");
+  div.className = "error-msg";
+  div.textContent = msg;
+  el.appendChild(div);
+};
+
+window.periodLabels = { cur: "Current", prior: "Prior" };
+
+window.loadPeriod = function () {
+  return window.fetchRange("PERIOD_CONTROL!A1:D10").then(function (rows) {
+    var cur = "";
+    var prior = "";
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var key = String(r[0] || "").toLowerCase();
+      if (key.indexOf("current") !== -1 && key.indexOf("year") === -1) { cur = r[1] || ""; }
+      if (key.indexOf("prior") !== -1 && key.indexOf("year") === -1) { prior = r[1] || ""; }
+    }
+    window.periodLabels = { cur: cur || "Current", prior: prior || "Prior" };
+    document.getElementById("period-label").textContent = cur ? (cur + " vs " + prior) : "Current period";
+  }, function () {
+    document.getElementById("period-label").textContent = "Current period";
+  });
+};
+
+window.EXPENSE_LINES = {
+  "Cost of Goods Sold": 1, "Payroll & Benefits": 1, "Facility & Rent": 1, "Insurance": 1,
+  "Professional Services": 1, "Marketing": 1, "Business Development": 1, "IT & Technology": 1,
+  "Other Operating Expenses": 1, "Total Operating Expenses": 1, "TOTAL OPERATING EXPENSES": 1,
+  "Depreciation & Amortization": 1, "Other Expense": 1, "Income Tax Expense": 1
+};
+
+window.parsePLRows = function (rows) {
+  var out = [];
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    if (!r[0]) { continue; }
+    var label = String(r[0]).replace(/^-+\s*/, "").replace(/\s*-+$/, "").replace(/^\s+|\s+$/g, "");
+    if (!label || label === "Row Label") { continue; }
+    var ll = label.toLowerCase();
+    var isHeader = /^(REVENUE|COST OF|OPERATING EXP|DEPRECIATION|OTHER INCOME|FINANCING)/i.test(label) && !r[2];
+    var isTotal = ll.indexOf("total") !== -1 || ll.indexOf("gross profit") !== -1 || ll.indexOf("ebitda") !== -1 || ll.indexOf("ebit") !== -1 || ll.indexOf("net income") !== -1 || ll.indexOf("income before") !== -1;
+    var isPct = label.indexOf("%") !== -1;
+    out.push({
+      label: label, isPct: isPct,
+      type: isHeader ? "grp" : (isTotal ? "tot" : "sub"),
+      cur: window.numVal(r[2]), prv: window.numVal(r[3]), ytdCur: window.numVal(r[4]), ytdPrv: window.numVal(r[5]),
+      varD: window.numVal(r[6]), varP: window.numVal(r[7])
+    });
+  }
+  return out;
+};
+
+window.favClass = function (varD, label) {
+  var isExp = window.EXPENSE_LINES[label] ? true : false;
+  if (Math.abs(varD) < 0.01) { return "kpi-neu"; }
+  var fav = (varD < 0 && isExp) || (varD >= 0 && !isExp);
+  return fav ? "pos" : "neg";
+};
+
+window.plGet = function (pl, lbl) {
+  for (var i = 0; i < pl.length; i++) {
+    if (pl[i].label.toUpperCase() === lbl.toUpperCase()) { return pl[i]; }
+  }
+  return { cur: 0, prv: 0, varP: 0, varD: 0, ytdCur: 0, ytdPrv: 0 };
+};
+
+window.loadSummary = function () {
+  document.getElementById("summary-loading").style.display = "flex";
+  document.getElementById("summary-content").style.display = "none";
+  return Promise.all([window.fetchRange("CALC_PL!A1:H80"), window.fetchRange("CALC_BS!A1:H80")]).then(function (results) {
+    var bsRowsRaw = results[1];
+    var pl = window.parsePLRows(results[0]);
+
+    var nr = window.plGet(pl, "TOTAL NET REVENUE");
+    var gp = window.plGet(pl, "GROSS PROFIT");
+    var eb = window.plGet(pl, "EBITDA");
+    var opex = window.plGet(pl, "TOTAL OPERATING EXPENSES");
+    var gm = window.plGet(pl, "Gross Margin %");
+    var em = window.plGet(pl, "EBITDA Margin %");
+
+    var cashCur = 0;
+    var cashPrv = 0;
+    for (var i = 0; i < bsRowsRaw.length; i++) {
+      var r = bsRowsRaw[i];
+      if (String(r[0] || "").toLowerCase().indexOf("cash & equivalents") !== -1) {
+        cashCur = window.numVal(r[2]);
+        cashPrv = window.numVal(r[3]);
+      }
+    }
+    var cashChg = cashCur - cashPrv;
+
+    var cardsData = [
+      { lbl: "Net Revenue", val: window.fmtMoney(nr.cur), delta: (nr.varP >= 0 ? "Up " : "Down ") + Math.abs(nr.varP).toFixed(1) + "% vs prior", sub: "YTD: " + window.fmtMoney(nr.ytdCur), dir: nr.varP >= 0 ? "pos" : "neg" },
+      { lbl: "Gross Profit", val: window.fmtMoney(gp.cur), delta: (gp.varP >= 0 ? "Up " : "Down ") + Math.abs(gp.varP).toFixed(1) + "% vs prior", sub: "Margin: " + gm.cur.toFixed(1) + "%", dir: gp.varP >= 0 ? "pos" : "neg" },
+      { lbl: "EBITDA", val: window.fmtMoney(eb.cur), delta: (eb.varP >= 0 ? "Up " : "Down ") + Math.abs(eb.varP).toFixed(1) + "% vs prior", sub: "Margin: " + em.cur.toFixed(1) + "%", dir: eb.cur >= 0 ? "pos" : "neg" },
+      { lbl: "Cash & Equivalents", val: window.fmtMoney(cashCur), delta: (cashChg >= 0 ? "Up " : "Down ") + window.fmtMoney(Math.abs(cashChg)) + " vs prior", sub: "", dir: cashChg >= 0 ? "pos" : "neg" }
+    ];
+
+    var grid = document.getElementById("kpi-grid");
+    grid.innerHTML = "";
+    for (var c = 0; c < cardsData.length; c++) {
+      var k = cardsData[c];
+      var div = document.createElement("div");
+      div.className = "kpi-card";
+      var html = "<div class=\"kpi-label\">" + k.lbl + "</div>";
+      html += "<div class=\"kpi-value\">" + k.val + "</div>";
+      html += "<div class=\"kpi-sub " + k.dir + "\">" + k.delta + "</div>";
+      if (k.sub) { html += "<div class=\"kpi-sub2\">" + k.sub + "</div>"; }
+      div.innerHTML = html;
+      grid.appendChild(div);
+    }
+
+    var flags = [];
+    for (var f = 0; f < pl.length; f++) {
+      var row = pl[f];
+      if (row.type !== "grp" && !row.isPct && Math.abs(row.varP) >= 5 && Math.abs(row.varD) >= 10000) { flags.push(row); }
+    }
+    flags.sort(function (a, b) { return Math.abs(b.varP) - Math.abs(a.varP); });
+    flags = flags.slice(0, 6);
+    var alertsEl = document.getElementById("top-alerts");
+    alertsEl.innerHTML = "";
+    if (flags.length === 0) {
+      var none = document.createElement("div");
+      none.style.color = "#64748b";
+      none.style.fontSize = "12px";
+      none.style.padding = "8px 0";
+      none.textContent = "No major variances this period.";
+      alertsEl.appendChild(none);
+    } else {
+      for (var g = 0; g < flags.length; g++) {
+        var fr = flags[g];
+        var cls = window.favClass(fr.varD, fr.label);
+        var sev = Math.abs(fr.varP) >= 40 ? "red" : (Math.abs(fr.varP) >= 15 ? "amber" : "green");
+        var adiv = document.createElement("div");
+        adiv.className = "alert alert-" + sev;
+        var ahtml = "<div class=\"alert-dot dot-" + sev + "\"></div>";
+        ahtml += "<div class=\"alert-name\">" + fr.label + "</div>";
+        ahtml += "<span class=\"" + cls + "\">" + window.fmtMoney(fr.varD) + "</span>&nbsp;";
+        ahtml += "<span class=\"" + cls + "\">" + (fr.varP > 0 ? "+" : "") + fr.varP.toFixed(1) + "%</span>";
+        adiv.innerHTML = ahtml;
+        alertsEl.appendChild(adiv);
+      }
+    }
+
+    window.destroyChart("rev");
+    window.charts.rev = new Chart(document.getElementById("rev-chart"), {
+      type: "bar",
+      data: {
+        labels: ["Net Revenue", "Gross Profit", "Total OpEx", "EBITDA"],
+        datasets: [
+          { label: window.periodLabels.cur, data: [nr.cur, gp.cur, opex.cur, eb.cur], backgroundColor: "#0ea5e9", borderRadius: 4 },
+          { label: window.periodLabels.prior, data: [nr.prv, gp.prv, opex.prv, eb.prv], backgroundColor: "#bae6fd", borderRadius: 4 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return window.fmtMoney(c.raw); } } } },
+        scales: { y: { ticks: { callback: function (v) { return window.fmtMoney(v); }, font: { size: 10 } } }, x: { ticks: { font: { size: 11 } }, grid: { display: false } } }
+      }
+    });
+    document.getElementById("leg-cur").textContent = window.periodLabels.cur;
+    document.getElementById("leg-prv").textContent = window.periodLabels.prior;
+
+    window.generateNarrative(nr, gp, eb, opex, gm, em, cashCur, cashChg);
+    window.setLoaded("summary");
+  }, function (e) {
+    window.setError("summary", "Could not load summary: " + e.message);
+  });
+};
+
+window.fallbackNarrative = function (nr, gp, eb, opex, cashCur, cashChg) {
+  var p1 = window.periodLabels.cur + " results show net revenue of " + window.fmtMoney(nr.cur) + ", " + (nr.varP >= 0 ? "up" : "down") + " " + Math.abs(nr.varP).toFixed(1) + "% versus " + window.periodLabels.prior + ". Gross profit came in at " + window.fmtMoney(gp.cur) + ". EBITDA was " + window.fmtMoney(eb.cur) + " compared to " + window.fmtMoney(eb.prv) + " in the prior period.";
+  var p2 = "Operating expenses totaled " + window.fmtMoney(opex.cur) + ", " + (opex.varP >= 0 ? "up" : "down") + " " + Math.abs(opex.varP).toFixed(1) + "% versus prior.";
+  var p3 = "Cash & equivalents stood at " + window.fmtMoney(cashCur) + ", " + (cashChg >= 0 ? "an increase" : "a decrease") + " of " + window.fmtMoney(Math.abs(cashChg)) + " from the prior period.";
+  return p1 + "\n\n" + p2 + "\n\n" + p3;
+};
+
+window.generateNarrative = function (nr, gp, eb, opex, gm, em, cashCur, cashChg) {
+  var promptParts = [];
+  promptParts.push("You are a CFO writing a concise executive summary for a board audience.");
+  promptParts.push("Write 3 short paragraphs (under 200 words) for " + window.periodLabels.cur + " vs " + window.periodLabels.prior + ". Be direct, professional, no bullet points.");
+  promptParts.push("Key figures:");
+  promptParts.push("- Net Revenue: " + window.fmtMoney(nr.cur) + " (" + (nr.varP >= 0 ? "+" : "") + nr.varP.toFixed(1) + "% vs prior) | YTD: " + window.fmtMoney(nr.ytdCur));
+  promptParts.push("- Gross Profit: " + window.fmtMoney(gp.cur) + " | Margin: " + gm.cur.toFixed(1) + "% (prior: " + gm.prv.toFixed(1) + "%)");
+  promptParts.push("- Total OpEx: " + window.fmtMoney(opex.cur) + " (" + (opex.varP >= 0 ? "+" : "") + opex.varP.toFixed(1) + "% vs prior)");
+  promptParts.push("- EBITDA: " + window.fmtMoney(eb.cur) + " (" + em.cur.toFixed(1) + "% margin) vs " + window.fmtMoney(eb.prv) + " prior");
+  promptParts.push("- Cash: " + window.fmtMoney(cashCur) + " (" + (cashChg >= 0 ? "+" : "") + window.fmtMoney(cashChg) + " vs prior)");
+  var prompt = promptParts.join("\n");
+
+  fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 500, messages: [{ role: "user", content: prompt }] })
+  }).then(function (res) {
+    return res.json();
+  }).then(function (data) {
+    var txt = "";
+    if (data.content) {
+      for (var i = 0; i < data.content.length; i++) {
+        if (data.content[i].type === "text") { txt = data.content[i].text; break; }
+      }
+    }
+    document.getElementById("narrative").textContent = txt || window.fallbackNarrative(nr, gp, eb, opex, cashCur, cashChg);
+  }, function () {
+    document.getElementById("narrative").textContent = window.fallbackNarrative(nr, gp, eb, opex, cashCur, cashChg);
+  });
+};
+
+window.bsGet = function (bsRows, label) {
+  var cur = 0;
+  var prv = 0;
+  for (var i = 0; i < bsRows.length; i++) {
+    var r = bsRows[i];
+    if (String(r[0] || "").toLowerCase().replace(/^\s+|\s+$/g, "") === label.toLowerCase()) {
+      cur = window.numVal(r[2]);
+      prv = window.numVal(r[3]);
+    }
+  }
+  return { cur: cur, prv: prv };
+};
+
+window.cfGet = function (cfRows, label) {
+  var cur = 0;
+  for (var i = 0; i < cfRows.length; i++) {
+    var r = cfRows[i];
+    if (String(r[0] || "").toLowerCase().indexOf(label.toLowerCase()) !== -1) { cur = window.numVal(r[2] || r[1]); }
+  }
+  return cur;
+};
+
+window.loadKPI = function () {
+  document.getElementById("kpi-loading").style.display = "flex";
+  document.getElementById("kpi-content").style.display = "none";
+  return Promise.all([window.fetchRange("CALC_PL!A1:H80"), window.fetchRange("CALC_BS!A1:H80"), window.fetchRange("CALC_CF!A1:H60")]).then(function (results) {
+    var pl = window.parsePLRows(results[0]);
+    var bsRows = results[1];
+    var cfRows = results[2];
+
+    var nr = window.plGet(pl, "TOTAL NET REVENUE");
+    var gp = window.plGet(pl, "GROSS PROFIT");
+    var eb = window.plGet(pl, "EBITDA");
+    var ebit = window.plGet(pl, "EBIT");
+    var ni = window.plGet(pl, "NET INCOME");
+    var opex = window.plGet(pl, "TOTAL OPERATING EXPENSES");
+    var cogs = window.plGet(pl, "Cost of Goods Sold");
+
+    var cash = window.bsGet(bsRows, "Cash & Equivalents");
+    var ar = window.bsGet(bsRows, "Accounts Receivable");
+    var totalCurAssets = window.bsGet(bsRows, "TOTAL CURRENT ASSETS");
+    var totalAssets = window.bsGet(bsRows, "TOTAL ASSETS");
+    var ap = window.bsGet(bsRows, "Accounts Payable");
+    var totalCurLiab = window.bsGet(bsRows, "TOTAL CURRENT LIABILITIES");
+    var totalLiab = window.bsGet(bsRows, "TOTAL LIABILITIES");
+    var totalEquity = window.bsGet(bsRows, "TOTAL EQUITY");
+    var otherExpense = window.plGet(pl, "Other Expense");
+    var netCashOps = window.cfGet(cfRows, "NET CASH FROM OPERATIONS");
+
+    var days = 30;
+    function ratio(a, b) { return b ? a / b : 0; }
+    function pct(a, b) { return b ? (a / b * 100) : 0; }
+
+    function deltaTxt(curVal, prvVal, isPctVal) {
+      var d = curVal - prvVal;
+      var dir = d >= 0 ? "pos" : "neg";
+      var arrow = d >= 0 ? "Up" : "Down";
+      var txt = isPctVal ? Math.abs(d).toFixed(1) + "pp" : Math.abs(d).toFixed(2);
+      return { dir: dir, html: arrow + " by " + txt + " vs prior" };
+    }
+
+    var grossMarginCur = pct(gp.cur, nr.cur);
+    var grossMarginPrv = pct(gp.prv, nr.prv);
+    var ebitdaMarginCur = pct(eb.cur, nr.cur);
+    var ebitdaMarginPrv = pct(eb.prv, nr.prv);
+    var netMarginCur = pct(ni.cur, nr.cur);
+    var netMarginPrv = pct(ni.prv, nr.prv);
+    var opexRatioCur = pct(opex.cur, nr.cur);
+    var opexRatioPrv = pct(opex.prv, nr.prv);
+    var roaCur = pct(ni.cur, totalAssets.cur);
+    var roaPrv = pct(ni.prv, totalAssets.prv);
+    var roeCur = pct(ni.cur, totalEquity.cur);
+    var roePrv = pct(ni.prv, totalEquity.prv);
+
+    var currentRatioCur = ratio(totalCurAssets.cur, totalCurLiab.cur);
+    var currentRatioPrv = ratio(totalCurAssets.prv, totalCurLiab.prv);
+    var quickRatioCur = ratio(cash.cur + ar.cur, totalCurLiab.cur);
+    var quickRatioPrv = ratio(cash.prv + ar.prv, totalCurLiab.prv);
+    var cashRatioCur = ratio(cash.cur, totalCurLiab.cur);
+    var cashRatioPrv = ratio(cash.prv, totalCurLiab.prv);
+    var dsoCur = ratio(ar.cur, nr.cur) * days;
+    var dsoPrv = ratio(ar.prv, nr.prv) * days;
+    var dpoCur = ratio(ap.cur, cogs.cur) * days;
+    var dpoPrv = ratio(ap.prv, cogs.prv) * days;
+    var cccCur = dsoCur - dpoCur;
+    var cccPrv = dsoPrv - dpoPrv;
+
+    var deCur = ratio(totalLiab.cur, totalEquity.cur);
+    var dePrv = ratio(totalLiab.prv, totalEquity.prv);
+    var debtEbitdaCur = ratio(totalLiab.cur, eb.cur);
+    var debtEbitdaPrv = ratio(totalLiab.prv, eb.prv);
+    var intCovCur = ratio(ebit.cur, Math.abs(otherExpense.cur) || 1);
+    var intCovPrv = ratio(ebit.prv, Math.abs(otherExpense.prv) || 1);
+
+    var revYoY = nr.ytdPrv ? pct(nr.ytdCur - nr.ytdPrv, nr.ytdPrv) : 0;
+    var revMoM = nr.varP;
+
+    function card(label, curVal, prvVal, isPctVal, isCurrency, decimals) {
+      var d = deltaTxt(curVal, prvVal, isPctVal);
+      var fmtVal;
+      if (isPctVal) { fmtVal = curVal.toFixed(2) + "%"; }
+      else if (isCurrency) { fmtVal = window.fmtMoney(curVal); }
+      else { fmtVal = curVal.toFixed(decimals !== undefined ? decimals : 2); }
+      return "<div class=\"kpi-card\"><div class=\"kpi-label\">" + label + "</div><div class=\"kpi-value\" style=\"font-size:18px;\">" + fmtVal + "</div><div class=\"kpi-sub " + d.dir + "\">" + d.html + "</div></div>";
+    }
+
+    var html = "";
+    html += "<div class=\"card\"><div class=\"card-title\">Profitability Ratios</div><div class=\"kpi-grid\">";
+    html += card("Gross Margin %", grossMarginCur, grossMarginPrv, true);
+    html += card("EBITDA Margin %", ebitdaMarginCur, ebitdaMarginPrv, true);
+    html += card("Net Profit Margin", netMarginCur, netMarginPrv, true);
+    html += card("OpEx Ratio", opexRatioCur, opexRatioPrv, true);
+    html += card("ROA", roaCur, roaPrv, true);
+    html += card("ROE", roeCur, roePrv, true);
+    html += "</div></div>";
+
+    html += "<div class=\"card\"><div class=\"card-title\">Liquidity Ratios</div><div class=\"kpi-grid\">";
+    html += card("Current Ratio", currentRatioCur, currentRatioPrv, false, false);
+    html += card("Quick Ratio", quickRatioCur, quickRatioPrv, false, false);
+    html += card("Cash Ratio", cashRatioCur, cashRatioPrv, false, false);
+    html += card("DSO (days)", dsoCur, dsoPrv, false, false, 0);
+    html += card("DPO (days)", dpoCur, dpoPrv, false, false, 0);
+    html += card("Cash Conv. Cycle", cccCur, cccPrv, false, false, 0);
+    html += "</div></div>";
+
+    html += "<div class=\"card\"><div class=\"card-title\">Leverage Ratios</div><div class=\"kpi-grid\">";
+    html += card("Debt-to-Equity", deCur, dePrv, false, false);
+    html += card("Debt-to-EBITDA", debtEbitdaCur, debtEbitdaPrv, false, false);
+    html += card("Interest Coverage", intCovCur, intCovPrv, false, false);
+    html += "</div></div>";
+
+    html += "<div class=\"card\"><div class=\"card-title\">Efficiency / Operating Metrics</div><div class=\"kpi-grid\">";
+    html += card("Revenue Growth YoY", revYoY, 0, true);
+    html += card("Revenue Growth MoM", revMoM, 0, true);
+    html += card("Net Cash from Ops", netCashOps, 0, false, true);
+    html += card("Total Assets", totalAssets.cur, totalAssets.prv, false, true);
+    html += card("Total Equity", totalEquity.cur, totalEquity.prv, false, true);
+    html += card("Cash & Equivalents", cash.cur, cash.prv, false, true);
+    html += "</div></div>";
+
+    document.getElementById("kpi-sections").innerHTML = html;
+    window.setLoaded("kpi");
+  }, function (e) {
+    window.setError("kpi", "Could not load KPIs: " + e.message);
+  });
+};
+
+window.loadPL = function () {
+  document.getElementById("pl-loading").style.display = "flex";
+  document.getElementById("pl-content").style.display = "none";
+  return window.fetchRange("CALC_PL with Sub-accounts!A1:H300").then(function (rows) {
+    var headers = rows[0] || [];
+    var periodCur = headers[2] || window.periodLabels.cur || "Current";
+    var periodPrv = headers[3] || window.periodLabels.prior || "Prior";
+    var colHeaders = ["Line Item", periodCur, periodPrv, "Current YTD", "Prior YTD", "Variance $", "Variance %"];
+    var dataRows = [];
+    for (var i = 1; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r[0]) { continue; }
+      var label = String(r[0]).replace(/^-+\s*/, "").replace(/\s*-+$/, "");
+      if (!label || label === "Row Label") { continue; }
+      var category = String(r[1] || "").replace(/^\s+|\s+$/g, "");
+      var ll = label.toLowerCase();
+      var isTotal = ll.indexOf("total") !== -1 || ll.indexOf("gross profit") !== -1 || ll.indexOf("net income") !== -1 || ll.indexOf("ebitda") !== -1 || ll.indexOf("ebit") !== -1 || ll.indexOf("income before") !== -1;
+      var isSectionHeader = /^(REVENUE|COST OF|OPERATING EXP|DEPRECIATION|OTHER INCOME|FINANCING)/i.test(label) && !window.numVal(r[2]) && !window.numVal(r[3]);
+      // Category row: has a non-blank Report Category AND it's not a total/section header
+      var isCategoryRow = category !== "" && !isTotal && !isSectionHeader;
+      // Subaccount row: blank Report Category, sits beneath a category row
+      var isSubaccount = category === "" && !isTotal && !isSectionHeader;
+
+      // Skip subaccounts where BOTH current and prior are exactly zero
+      if (isSubaccount && window.numVal(r[2]) === 0 && window.numVal(r[3]) === 0) { continue; }
+
+      var cellCls = isSubaccount ? "indent" : "";
+      var cells = [{ text: label, cls: cellCls }];
+      for (var c = 2; c < 8; c++) {
+        var raw = r[c] || "";
+        var n = window.numVal(raw);
+        cells.push({ text: raw ? (label.indexOf("%") !== -1 ? raw : window.fmtMoney(n)) : String.fromCharCode(8212), cls: n < 0 ? "neg" : "" });
+      }
+      var rowClass = isTotal ? "row-total" : (isSectionHeader ? "row-header" : (isCategoryRow ? "row-category" : ""));
+      dataRows.push({ cells: cells, rowClass: rowClass });
+    }
+    window.makeTable(document.getElementById("pl-table"), dataRows, colHeaders);
+    window.setLoaded("pl");
+  }, function (e) {
+    window.setError("pl", "Could not load P&L: " + e.message);
+  });
+};
+
+window.BANNER_LABELS = { "ASSETS": 1, "LIABILITIES": 1, "EQUITY": 1, "CURRENT ASSETS": 1, "LONG-TERM ASSETS": 1, "LONG-TERM ASETS": 1, "CURRENT LIABILITIES": 1, "LONG-TERM LIABILITIES": 1, "LONG-TERM LIABILITES": 1 };
+
+window.loadBS = function () {
+  document.getElementById("bs-loading").style.display = "flex";
+  document.getElementById("bs-content").style.display = "none";
+  return window.fetchRange("CALC_BS!A1:H80").then(function (rows) {
+    var assetRows = [];
+    var liabRows = [];
+    var section = "";
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r[0]) { continue; }
+      var label = String(r[0]).replace(/^-+\s*/, "").replace(/\s*-+$/, "").replace(/^\s+|\s+$/g, "");
+      if (!label) { continue; }
+      var ll = label.toLowerCase();
+      var upperLabel = label.toUpperCase();
+      if (ll.indexOf("opening balance equity") !== -1 || ll.indexOf("current year net income") !== -1) { continue; }
+      if (ll.indexOf("asset") !== -1) { section = "assets"; }
+      if (ll.indexOf("liabilit") !== -1 || ll.indexOf("equity") !== -1) { section = "liab"; }
+      var isBanner = window.BANNER_LABELS[upperLabel] ? true : false;
+      var v = window.numVal(r[2] || r[1]);
+      var isTotal = !isBanner && (ll.indexOf("total") !== -1 || ll.indexOf("subtotal") !== -1);
+      var cleanLabel = label.replace(/^---\s*SUBTOTAL\s*---$/i, label).replace(/^---\s*LINK\s*---$/i, label);
+      var cells = [
+        { text: cleanLabel, cls: (!isTotal && !isBanner) ? "indent" : "" },
+        { text: isBanner ? "" : window.fmtMoney(v), cls: v < 0 ? "neg" : "" }
+      ];
+      var row = { cells: cells, rowClass: isTotal ? "row-total" : (isBanner ? "row-header" : "") };
+      if (section === "assets") { assetRows.push(row); }
+      else if (section === "liab") { liabRows.push(row); }
+    }
+    window.makeTable(document.getElementById("assets-table"), assetRows, ["Item", "Amount"]);
+    window.makeTable(document.getElementById("liab-table"), liabRows, ["Item", "Amount"]);
+    window.setLoaded("bs");
+  }, function (e) {
+    window.setError("bs", "Could not load Balance Sheet: " + e.message);
+  });
+};
+
+window.loadCF = function () {
+  document.getElementById("cf-loading").style.display = "flex";
+  document.getElementById("cf-content").style.display = "none";
+  return window.fetchRange("CALC_CF!A1:H60").then(function (rows) {
+    var tableRows = [];
+    var cfLabels = [];
+    var cfVals = [];
+    var cfColors = [];
+    for (var i = 1; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r[0]) { continue; }
+      var label = String(r[0]).replace(/^-+\s*/, "").replace(/\s*-+$/, "");
+      if (!label || label === "Row Label") { continue; }
+      var ll = label.toLowerCase();
+      var v = window.numVal(r[2] || r[1]);
+      var isTotal = ll.indexOf("net cash") !== -1 || ll.indexOf("net change") !== -1 || ll.indexOf("ending") !== -1 || ll.indexOf("beginning") !== -1;
+      var isReconcil = ll.indexOf("reconcil") !== -1 || ll.indexOf("proof") !== -1 || ll.indexOf("bs cash balance") !== -1;
+      var isHeader = ll.indexOf("activities") !== -1 && !r[2] && !r[1];
+      tableRows.push({
+        cells: [
+          { text: label, cls: (!isTotal && !isHeader && !isReconcil) ? "indent" : "" },
+          { text: (r[2] || r[1]) ? window.fmtMoney(v) : String.fromCharCode(8212), cls: v < 0 ? "neg" : (v > 0 ? "pos" : "") }
+        ],
+        rowClass: isReconcil ? "row-reconcil" : (isTotal ? "row-total" : (isHeader ? "row-header" : ""))
+      });
+      if (isTotal && ll.indexOf("beginning") === -1 && ll.indexOf("ending") === -1 && cfLabels.length < 5) {
+        cfLabels.push(label);
+        cfVals.push(v);
+        cfColors.push(v >= 0 ? "#10b981" : "#ef4444");
+      }
+    }
+    window.makeTable(document.getElementById("cf-table"), tableRows, ["Item", "Amount"]);
+    window.destroyChart("cf");
+    if (cfVals.length > 0) {
+      window.charts.cf = new Chart(document.getElementById("cf-chart"), {
+        type: "bar",
+        data: { labels: cfLabels, datasets: [{ label: "Cash flow", data: cfVals, backgroundColor: cfColors, borderRadius: 4, borderSkipped: false }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: function (v) { return window.fmtMoney(v); }, font: { size: 11 } } }, x: { ticks: { font: { size: 11 }, maxRotation: 20 }, grid: { display: false } } } }
+      });
+    }
+    window.setLoaded("cf");
+  }, function (e) {
+    window.setError("cf", "Could not load Cash Flow: " + e.message);
+  });
+};
+
+window.loadForecast = function () {
+  document.getElementById("forecast-loading").style.display = "flex";
+  document.getElementById("forecast-content").style.display = "none";
+  return window.fetchRange("Sheet2!A1:P25").then(function (rows) {
+    var headers = rows[0] || [];
+    var weeks = [];
+    for (var h = 1; h < headers.length; h++) { if (headers[h]) { weeks.push(headers[h]); } }
+    var inflows = [];
+    var outflows = [];
+    var net = [];
+    for (var z0 = 0; z0 < 13; z0++) { inflows.push(0); outflows.push(0); net.push(null); }
+    var tableRows = [];
+    for (var i = 1; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r[0]) { continue; }
+      var label = String(r[0]);
+      var ll = label.toLowerCase();
+      var vals = [];
+      for (var v2 = 1; v2 < r.length; v2++) { vals.push(window.numVal(r[v2])); }
+      if (ll.indexOf("inflow") !== -1 || ll.indexOf("receipt") !== -1 || ll.indexOf("collection") !== -1 || ll.indexOf("total in") !== -1) {
+        for (var x = 0; x < vals.length && x < 13; x++) { inflows[x] += vals[x]; }
+      } else if (ll.indexOf("outflow") !== -1 || ll.indexOf("payment") !== -1 || ll.indexOf("disbursement") !== -1 || ll.indexOf("total out") !== -1) {
+        for (var y = 0; y < vals.length && y < 13; y++) { outflows[y] += Math.abs(vals[y]); }
+      }
+      if (ll.indexOf("net") !== -1 || ll.indexOf("ending cash") !== -1) {
+        for (var z = 0; z < vals.length && z < 13; z++) { net[z] = vals[z]; }
+      }
+      var cells = [{ text: label }];
+      for (var c2 = 1; c2 < Math.min(r.length, 8); c2++) {
+        var n2 = window.numVal(r[c2]);
+        cells.push({ text: r[c2] ? window.fmtMoney(n2) : String.fromCharCode(8212), cls: n2 < 0 ? "neg" : "" });
+      }
+      tableRows.push({ cells: cells, rowClass: (ll.indexOf("total") !== -1 || ll.indexOf("net") !== -1 || ll.indexOf("ending") !== -1) ? "row-total" : "" });
+    }
+    var wkLabels = [];
+    for (var w = 0; w < 13; w++) { wkLabels.push(weeks[w] || ("Wk " + (w + 1))); }
+    var hasNet = false;
+    for (var nn = 0; nn < net.length; nn++) { if (net[nn] !== null) { hasNet = true; break; } }
+    var netLine;
+    if (hasNet) {
+      netLine = net.slice(0, 13);
+    } else {
+      netLine = [];
+      for (var ni2 = 0; ni2 < inflows.length; ni2++) { netLine.push(inflows[ni2] - outflows[ni2]); }
+    }
+    window.destroyChart("forecast");
+    window.charts.forecast = new Chart(document.getElementById("forecast-chart"), {
+      type: "bar",
+      data: { labels: wkLabels, datasets: [
+        { label: "Inflows", data: inflows.slice(0, 13), backgroundColor: "#0ea5e9", borderRadius: 3 },
+        { label: "Outflows", data: outflows.slice(0, 13).map(function (vv) { return -vv; }), backgroundColor: "#ef4444", borderRadius: 3 },
+        { label: "Net", data: netLine, type: "line", borderColor: "#10b981", backgroundColor: "transparent", tension: 0.3, pointRadius: 4, borderWidth: 2 }
+      ] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: function (v) { return window.fmtMoney(v); }, font: { size: 11 } } }, x: { ticks: { font: { size: 10 }, maxRotation: 40, autoSkip: false }, grid: { display: false } } } }
+    });
+    window.makeTable(document.getElementById("forecast-table"), tableRows.slice(0, 20), ["Item"].concat(wkLabels.slice(0, 6)));
+    window.setLoaded("forecast");
+  }, function (e) {
+    window.setError("forecast", "Could not load forecast: " + e.message);
+  });
+};
+
+window.loadAll = function () {
+  document.getElementById("global-error").style.display = "none";
+  var connBar = document.getElementById("conn-test");
+  connBar.className = "conn-bar";
+  connBar.style.display = "block";
+  document.getElementById("conn-status").textContent = "connecting...";
+
+  window.fetchRange("PERIOD_CONTROL!A1:B5").then(function (testData) {
+    connBar.className = "conn-bar ok";
+    document.getElementById("conn-status").textContent = "Connected - " + testData.length + " rows from PERIOD_CONTROL";
+    setTimeout(function () { connBar.style.display = "none"; }, 3000);
+    return window.loadPeriod();
+  }, function (e) {
+    connBar.className = "conn-bar fail";
+    var msg = (e && e.message) ? e.message : "Unknown error";
+    document.getElementById("conn-status").textContent = "Connection failed: " + msg;
+    window.setError("summary", "Connection failed: " + msg);
+    return Promise.reject(e);
+  }).then(function () {
+    window.loadSummary();
+    window.loadKPI();
+    window.loadPL();
+    window.loadBS();
+    window.loadCF();
+    window.loadForecast();
+  }, function () {
+    return null;
+  });
+};
+
+window.loadAll();
+</script>
+</body>
+</html>
