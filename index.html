@@ -227,18 +227,31 @@ window.parseCSV = function (text) {
 };
 
 window.fetchSheet = function (sheetName) {
-  var encodedName = encodeURIComponent(sheetName).replace(/%20/g, "+");
-  var url = "https://docs.google.com/spreadsheets/d/" + window.SHEET_ID + "/gviz/tq?tqx=out:csv&sheet=" + encodedName;
-  return fetch(url).then(function (res) {
+  var encodedPlus = encodeURIComponent(sheetName).replace(/%20/g, "+");
+  var urlPlus = "https://docs.google.com/spreadsheets/d/" + window.SHEET_ID + "/gviz/tq?tqx=out:csv&sheet=" + encodedPlus;
+
+  return fetch(urlPlus).then(function (res) {
     if (!res.ok) {
       throw new Error("Could not load sheet: " + sheetName + " (" + res.status + ")");
     }
     return res.text();
   }).then(function (text) {
-    if (text.indexOf("signin") !== -1 || text.indexOf("<html") !== -1) {
+    if (text.indexOf("signin") !== -1 || text.indexOf("accounts.google.com") !== -1) {
       throw new Error("Sheet not accessible: " + sheetName);
     }
-    return window.parseCSV(text);
+    var parsed = window.parseCSV(text);
+    // Sanity check: if this came back basically empty/wrong, try %20 encoding as fallback
+    if (parsed.length < 2) {
+      var encodedPct = encodeURIComponent(sheetName);
+      var urlPct = "https://docs.google.com/spreadsheets/d/" + window.SHEET_ID + "/gviz/tq?tqx=out:csv&sheet=" + encodedPct;
+      return fetch(urlPct).then(function (res2) {
+        if (!res2.ok) { throw new Error("Could not load sheet (fallback): " + sheetName + " (" + res2.status + ")"); }
+        return res2.text();
+      }).then(function (text2) {
+        return window.parseCSV(text2);
+      });
+    }
+    return parsed;
   });
 };
 
@@ -702,6 +715,12 @@ window.loadPL = function () {
       dataRows.push({ cells: cells, rowClass: rowClass });
     }
     window.makeTable(document.getElementById("pl-table"), dataRows, colHeaders);
+    var debugEl = document.createElement("div");
+    debugEl.style.fontSize = "11px";
+    debugEl.style.color = "#94a3b8";
+    debugEl.style.marginTop = "10px";
+    debugEl.textContent = "[debug] total rows fetched: " + rows.length + " | rendered rows: " + dataRows.length;
+    document.getElementById("pl-content").appendChild(debugEl);
     window.setLoaded("pl");
   }, function (e) {
     window.setError("pl", "Could not load P&L: " + e.message);
