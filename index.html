@@ -1073,14 +1073,23 @@ function loadForecast() {
       var numCols = headerRowArr.length;
 
       var colLabels = [];
+      var colIndexInData = 0;
       for (var c = labelColIdx + 1; c < numCols; c++) {
         var startTxt = weekStartRow[c];
         if (startTxt === undefined || startTxt === null || startTxt === "") { startTxt = "Wk " + (c - labelColIdx); }
+
         var tagTxt = tagRow[c];
-        if (tagTxt !== undefined && tagTxt !== null && String(tagTxt).replace(/^\s+|\s+$/g, "") !== "") {
-          startTxt = String(tagTxt).replace(/^\s+|\s+$/g, "") + " \u00B7 " + startTxt;
+        var tagClean = "";
+        if (tagTxt !== undefined && tagTxt !== null) { tagClean = String(tagTxt).replace(/^\s+|\s+$/g, ""); }
+
+        // Fallback: if tag cell is blank, infer from position (first 2 cols = Actual, rest = Forecast)
+        if (tagClean === "") {
+          tagClean = (colIndexInData < 2) ? "Actual" : "Forecast";
         }
+
+        startTxt = tagClean + " \u00B7 " + startTxt;
         colLabels.push(startTxt);
+        colIndexInData = colIndexInData + 1;
       }
 
       var endCashRow = null;
