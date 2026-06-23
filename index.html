@@ -719,7 +719,7 @@ window.loadPL = function () {
     debugEl.style.fontSize = "11px";
     debugEl.style.color = "#94a3b8";
     debugEl.style.marginTop = "10px";
-    debugEl.textContent = "[debug] total rows fetched: " + rows.length + " | rendered rows: " + dataRows.length;
+    debugEl.textContent = "[debug] fetched: " + rows.length + " | rendered: " + dataRows.length + " | category: " + debugCounts.category + " | subaccount: " + debugCounts.subaccount + " | total: " + debugCounts.total_rows + " | header: " + debugCounts.header + " | skippedZero: " + debugCounts.skippedZero + " | skippedBlank: " + debugCounts.skippedBlank;
     document.getElementById("pl-content").appendChild(debugEl);
     window.setLoaded("pl");
   }, function (e) {
