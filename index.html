@@ -1001,8 +1001,50 @@ function loadForecast() {
         if (headerRowIdx !== -1) { break; }
       }
 
+      // Fallback: search for "week start" row instead, header is one row above it
       if (headerRowIdx === -1) {
-        setError("forecast", "Could not locate 'Line Item' header in 13WK_FORECAST (searched " + rows.length + " rows)");
+        for (var hi2 = 0; hi2 < rows.length && hi2 < 25; hi2++) {
+          var rowArr2 = rows[hi2] || [];
+          for (var hc2 = 0; hc2 < rowArr2.length; hc2++) {
+            var cellVal2 = rowArr2[hc2];
+            if (cellVal2 !== undefined && cellVal2 !== null) {
+              var cellStr2 = String(cellVal2).replace(/^\s+|\s+$/g, "").toLowerCase();
+              if (cellStr2 === "week start") {
+                headerRowIdx = hi2 - 1;
+                labelColIdx = hc2;
+                break;
+              }
+            }
+          }
+          if (headerRowIdx !== -1) { break; }
+        }
+      }
+
+      // Last-resort fallback: search for "beginning cash" row, header is 3 rows above it
+      if (headerRowIdx === -1) {
+        for (var hi3 = 0; hi3 < rows.length && hi3 < 30; hi3++) {
+          var rowArr3 = rows[hi3] || [];
+          for (var hc3 = 0; hc3 < rowArr3.length; hc3++) {
+            var cellVal3 = rowArr3[hc3];
+            if (cellVal3 !== undefined && cellVal3 !== null) {
+              var cellStr3 = String(cellVal3).replace(/^\s+|\s+$/g, "").toLowerCase();
+              if (cellStr3 === "beginning cash") {
+                headerRowIdx = hi3 - 3;
+                labelColIdx = hc3;
+                break;
+              }
+            }
+          }
+          if (headerRowIdx !== -1) { break; }
+        }
+      }
+
+      if (headerRowIdx === -1 || headerRowIdx < 0) {
+        var rawDump = "";
+        for (var dbgRow = 0; dbgRow < Math.min(rows.length, 18); dbgRow++) {
+          rawDump = rawDump + "Row" + dbgRow + ":[" + (rows[dbgRow] || []).join("~") + "] ";
+        }
+        setError("forecast", "Could not locate header in 13WK_FORECAST. Raw dump: " + rawDump);
         return;
       }
 
