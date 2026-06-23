@@ -977,123 +977,139 @@ function loadForecast() {
   document.getElementById("forecast-loading").style.display = "flex";
   document.getElementById("forecast-content").style.display = "none";
   return fetchRange("13WK_FORECAST!A1:R45").then(function (rows) {
-    if (!rows || rows.length < 17) {
-      throw new Error("13WK_FORECAST tab returned fewer rows than expected (" + (rows ? rows.length : 0) + ")");
-    }
+    try {
+      if (!rows || rows.length < 17) {
+        setError("forecast", "13WK_FORECAST returned fewer rows than expected (" + (rows ? rows.length : 0) + ")");
+        return;
+      }
 
-    // Find the row that contains "Line Item" in any column - that's our header row
-    var headerRowIdx = -1;
-    var labelColIdx = -1;
-    for (var hi = 0; hi < Math.min(rows.length, 20); hi++) {
-      for (var hc = 0; hc < rows[hi].length; hc++) {
-        if (String(rows[hi][hc] || "").toLowerCase().replace(/^\s+|\s+$/g, "") === "line item") {
-          headerRowIdx = hi;
-          labelColIdx = hc;
-          break;
+      var headerRowIdx = -1;
+      var labelColIdx = -1;
+      for (var hi = 0; hi < rows.length && hi < 25; hi++) {
+        var rowArr = rows[hi] || [];
+        for (var hc = 0; hc < rowArr.length; hc++) {
+          var cellVal = rowArr[hc];
+          if (cellVal !== undefined && cellVal !== null) {
+            var cellStr = String(cellVal).replace(/^\s+|\s+$/g, "").toLowerCase();
+            if (cellStr === "line item") {
+              headerRowIdx = hi;
+              labelColIdx = hc;
+              break;
+            }
+          }
         }
-      }
-      if (headerRowIdx !== -1) { break; }
-    }
-    if (headerRowIdx === -1) {
-      throw new Error("Could not find 'Line Item' header row in 13WK_FORECAST");
-    }
-
-    var weekStartRow = rows[headerRowIdx + 1] || [];
-    var weekEndRow = rows[headerRowIdx + 2] || [];
-    var dataStartIdx = headerRowIdx + 3;
-
-    var numCols = rows[headerRowIdx].length;
-    var colLabels = [];
-    for (var c = labelColIdx + 1; c < numCols; c++) {
-      var startTxt = weekStartRow[c] || ("Wk " + (c - labelColIdx));
-      colLabels.push(startTxt);
-    }
-
-    var beginCashRow = null;
-    var totalInRow = null;
-    var totalOutRow = null;
-    var netChangeRow = null;
-    var endCashRow = null;
-
-    var tableRows = [];
-
-    for (var i = dataStartIdx; i < rows.length; i++) {
-      var r = rows[i];
-      if (!r) { continue; }
-      var rawLabel = r[labelColIdx];
-      if (rawLabel === undefined || rawLabel === null || String(rawLabel).replace(/^\s+|\s+$/g, "") === "") { continue; }
-      var label = String(rawLabel).replace(/^\s+|\s+$/g, "");
-      var ll = label.toLowerCase();
-      var isIndented = /^\s{2,}/.test(String(rawLabel));
-
-      var isTotalRow = ll.indexOf("total cash") !== -1 || ll === "net change (in - out)" || ll.indexOf("ending cash") !== -1 || ll.indexOf("beginning cash") !== -1 || ll.indexOf("minimum cash") !== -1 || ll.indexOf("surplus") !== -1 || ll.indexOf("funding needed") !== -1;
-      var isParentCategory = (ll.indexOf("cash out -") !== -1 || ll.indexOf("cash in -") !== -1) && !isIndented;
-
-      var rowClass = "";
-      if (isTotalRow) { rowClass = "row-total"; }
-      else if (isParentCategory) { rowClass = "row-category"; }
-
-      var cells = [{ text: label, cls: isIndented ? "indent" : "" }];
-      var hasNonZero = false;
-      for (var c2 = labelColIdx + 1; c2 < numCols; c2++) {
-        var raw = r[c2] === undefined || r[c2] === null ? "" : String(r[c2]);
-        var n = numVal(raw);
-        if (n !== 0) { hasNonZero = true; }
-        var txt;
-        if (raw === "" || raw === "-" || raw === "\u2014") { txt = String.fromCharCode(8212); }
-        else { txt = fmtMoney(n); }
-        cells.push({ text: txt, cls: n < 0 ? "neg" : "" });
+        if (headerRowIdx !== -1) { break; }
       }
 
-      if (isIndented && !hasNonZero) { continue; }
+      if (headerRowIdx === -1) {
+        setError("forecast", "Could not locate 'Line Item' header in 13WK_FORECAST (searched " + rows.length + " rows)");
+        return;
+      }
 
-      tableRows.push({ cells: cells, rowClass: rowClass });
+      var weekStartRow = rows[headerRowIdx + 1] || [];
+      var dataStartIdx = headerRowIdx + 3;
+      var headerRowArr = rows[headerRowIdx] || [];
+      var numCols = headerRowArr.length;
 
-      if (ll.indexOf("beginning cash") !== -1) { beginCashRow = r; }
-      if (ll === "total cash in") { totalInRow = r; }
-      if (ll === "total cash out") { totalOutRow = r; }
-      if (ll.indexOf("net change") !== -1) { netChangeRow = r; }
-      if (ll.indexOf("ending cash") !== -1) { endCashRow = r; }
-    }
+      var colLabels = [];
+      for (var c = labelColIdx + 1; c < numCols; c++) {
+        var startTxt = weekStartRow[c];
+        if (startTxt === undefined || startTxt === null || startTxt === "") { startTxt = "Wk " + (c - labelColIdx); }
+        colLabels.push(startTxt);
+      }
 
-    makeTable(document.getElementById("forecast-table"), tableRows, ["Line Item"].concat(colLabels));
+      var beginCashRow = null;
+      var totalInRow = null;
+      var totalOutRow = null;
+      var netChangeRow = null;
 
-    // Chart: 13 forecast weeks only (skip the 2 "Actual" columns at the start)
-    var chartLabels = [];
-    var inflowsData = [];
-    var outflowsData = [];
-    var netData = [];
-    var skipActualCols = 2;
-    for (var w = labelColIdx + 1 + skipActualCols; w < numCols; w++) {
-      chartLabels.push(weekStartRow[w] || ("Wk " + (w - labelColIdx - skipActualCols)));
-      inflowsData.push(totalInRow ? numVal(totalInRow[w]) : 0);
-      outflowsData.push(totalOutRow ? -numVal(totalOutRow[w]) : 0);
-      netData.push(netChangeRow ? numVal(netChangeRow[w]) : 0);
-    }
+      var tableRows = [];
 
-    destroyChart("forecast");
-    window.charts.forecast = new Chart(document.getElementById("forecast-chart"), {
-      type: "bar",
-      data: {
-        labels: chartLabels,
-        datasets: [
-          { label: "Inflows", data: inflowsData, backgroundColor: "#0ea5e9", borderRadius: 3 },
-          { label: "Outflows", data: outflowsData, backgroundColor: "#ef4444", borderRadius: 3 },
-          { label: "Net", data: netData, type: "line", borderColor: "#10b981", backgroundColor: "transparent", tension: 0.3, pointRadius: 4, borderWidth: 2 }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          y: { ticks: { callback: function (v) { return fmtMoney(v); }, font: { size: 11 } } },
-          x: { ticks: { font: { size: 10 }, maxRotation: 40, autoSkip: false }, grid: { display: false } }
+      for (var i = dataStartIdx; i < rows.length; i++) {
+        var r = rows[i];
+        if (!r) { continue; }
+        var rawLabel = r[labelColIdx];
+        if (rawLabel === undefined || rawLabel === null) { continue; }
+        var rawLabelStr = String(rawLabel);
+        var label = rawLabelStr.replace(/^\s+|\s+$/g, "");
+        if (label === "") { continue; }
+        var ll = label.toLowerCase();
+        var isIndented = /^\s{2,}/.test(rawLabelStr);
+
+        var isTotalRow = (ll.indexOf("total cash") !== -1) || (ll.indexOf("net change") !== -1) || (ll.indexOf("ending cash") !== -1) || (ll.indexOf("beginning cash") !== -1) || (ll.indexOf("minimum cash") !== -1) || (ll.indexOf("surplus") !== -1) || (ll.indexOf("funding needed") !== -1);
+        var isParentCategory = ((ll.indexOf("cash out -") !== -1) || (ll.indexOf("cash in -") !== -1)) && (isIndented === false);
+
+        var rowClass = "";
+        if (isTotalRow === true) { rowClass = "row-total"; }
+        else if (isParentCategory === true) { rowClass = "row-category"; }
+
+        var cells = [{ text: label, cls: isIndented ? "indent" : "" }];
+        var hasNonZero = false;
+        for (var c2 = labelColIdx + 1; c2 < numCols; c2++) {
+          var rawCell = r[c2];
+          var rawStr = "";
+          if (rawCell !== undefined && rawCell !== null) { rawStr = String(rawCell); }
+          var n = numVal(rawStr);
+          if (n !== 0) { hasNonZero = true; }
+          var txt;
+          if (rawStr === "" || rawStr === "-" || rawStr === String.fromCharCode(8212)) { txt = String.fromCharCode(8212); }
+          else { txt = fmtMoney(n); }
+          cells.push({ text: txt, cls: n < 0 ? "neg" : "" });
         }
-      }
-    });
 
-    setLoaded("forecast");
+        if (isIndented === true && hasNonZero === false) { continue; }
+
+        tableRows.push({ cells: cells, rowClass: rowClass });
+
+        if (ll.indexOf("beginning cash") !== -1) { beginCashRow = r; }
+        if (ll === "total cash in") { totalInRow = r; }
+        if (ll === "total cash out") { totalOutRow = r; }
+        if (ll.indexOf("net change") !== -1) { netChangeRow = r; }
+      }
+
+      makeTable(document.getElementById("forecast-table"), tableRows, ["Line Item"].concat(colLabels));
+
+      var chartLabels = [];
+      var inflowsData = [];
+      var outflowsData = [];
+      var netData = [];
+      var skipActualCols = 2;
+      var chartStartCol = labelColIdx + 1 + skipActualCols;
+      for (var w = chartStartCol; w < numCols; w++) {
+        var wLabel = weekStartRow[w];
+        if (wLabel === undefined || wLabel === null || wLabel === "") { wLabel = "Wk " + (w - chartStartCol + 1); }
+        chartLabels.push(wLabel);
+        inflowsData.push(totalInRow ? numVal(totalInRow[w]) : 0);
+        outflowsData.push(totalOutRow ? (numVal(totalOutRow[w]) * -1) : 0);
+        netData.push(netChangeRow ? numVal(netChangeRow[w]) : 0);
+      }
+
+      destroyChart("forecast");
+      window.charts.forecast = new Chart(document.getElementById("forecast-chart"), {
+        type: "bar",
+        data: {
+          labels: chartLabels,
+          datasets: [
+            { label: "Inflows", data: inflowsData, backgroundColor: "#0ea5e9", borderRadius: 3 },
+            { label: "Outflows", data: outflowsData, backgroundColor: "#ef4444", borderRadius: 3 },
+            { label: "Net", data: netData, type: "line", borderColor: "#10b981", backgroundColor: "transparent", tension: 0.3, pointRadius: 4, borderWidth: 2 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { ticks: { callback: function (v) { return fmtMoney(v); }, font: { size: 11 } } },
+            x: { ticks: { font: { size: 10 }, maxRotation: 40, autoSkip: false }, grid: { display: false } }
+          }
+        }
+      });
+
+      setLoaded("forecast");
+    } catch (innerErr) {
+      setError("forecast", "Internal error parsing 13WK_FORECAST: " + innerErr.message);
+    }
   }, function (e) {
     setError("forecast", "Could not load forecast: " + e.message);
   });
