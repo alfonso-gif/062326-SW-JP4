@@ -769,6 +769,15 @@ function makeTableWithGroups(el, rows, cols) {
     var tr = document.createElement("tr");
     if (rowData.rowClass) { tr.className = rowData.rowClass; }
     if (rowData.isCategory) { tr.setAttribute("data-group-toggle", rowData.groupId); }
+    if (rowData.isLeafClickable) {
+      tr.className = (tr.className ? tr.className + " " : "") + "pl-clickable";
+      tr.setAttribute("data-account-name", rowData.cells[0].text);
+      tr.onclick = function (ev) {
+        if (ev && ev.stopPropagation) { ev.stopPropagation(); }
+        var acctName = this.getAttribute("data-account-name");
+        openTxnModal(acctName);
+      };
+    }
     if (rowData.isSub) {
       tr.className = (tr.className ? tr.className + " " : "") + "sub-row pl-clickable";
       tr.setAttribute("data-group", rowData.groupId);
@@ -1028,11 +1037,29 @@ function loadPL() {
     for (var gi = 0; gi < dataRows.length; gi++) {
       if (dataRows[gi].isSub) { groupsWithSubs[dataRows[gi].groupId] = true; }
     }
+
+    var filteredRows = [];
     for (var gj = 0; gj < dataRows.length; gj++) {
-      if (dataRows[gj].isCategory && groupsWithSubs[dataRows[gj].groupId]) {
-        dataRows[gj].rowClass = dataRows[gj].rowClass + " has-subs";
+      var dr = dataRows[gj];
+      if (dr.isCategory && groupsWithSubs[dr.groupId]) {
+        dr.rowClass = dr.rowClass + " has-subs";
+        filteredRows.push(dr);
+        continue;
       }
+      if (dr.isCategory && !groupsWithSubs[dr.groupId]) {
+        // Leaf category with no subaccounts - skip entirely if both Current and Prior are zero
+        var curCellTxt = dr.cells[1] ? dr.cells[1].text : "";
+        var prvCellTxt = dr.cells[2] ? dr.cells[2].text : "";
+        var curIsZero = (curCellTxt === String.fromCharCode(8212)) || curCellTxt === "$0";
+        var prvIsZero = (prvCellTxt === String.fromCharCode(8212)) || prvCellTxt === "$0";
+        if (curIsZero && prvIsZero) { continue; }
+        dr.isLeafClickable = true;
+        filteredRows.push(dr);
+        continue;
+      }
+      filteredRows.push(dr);
     }
+    dataRows = filteredRows;
 
     makeTableWithGroups(document.getElementById("pl-table"), dataRows, colHeaders);
     wirePLToggles();
