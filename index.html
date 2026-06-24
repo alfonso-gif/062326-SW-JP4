@@ -61,7 +61,20 @@
   .row-reconcil td:first-child { color: #cbd5e1; }
   .data-table tr:hover td { background: #f8fafc; }
   .row-total:hover td, .row-header:hover td, .row-reconcil:hover td { background: inherit; }
-  .indent { padding-left: 24px !important; color: #64748b !important; }
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(15,23,42,.5); z-index: 1000; align-items: center; justify-content: center; padding: 24px; }
+  .modal-overlay.show { display: flex; }
+  .modal-box { background: #fff; border-radius: 12px; max-width: 900px; width: 100%; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+  .modal-header { padding: 16px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+  .modal-title { font-size: 14px; font-weight: 700; color: #0f172a; }
+  .modal-sub { font-size: 11px; color: #64748b; margin-top: 2px; }
+  .modal-close { background: none; border: none; font-size: 20px; color: #94a3b8; cursor: pointer; line-height: 1; padding: 4px 8px; }
+  .modal-close:hover { color: #0f172a; }
+  .modal-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
+  .modal-total { padding: 12px 20px; border-top: 1px solid #e2e8f0; font-size: 12px; font-weight: 700; display: flex; justify-content: space-between; background: #f8fafc; }
+  .pl-clickable { cursor: pointer; }
+  .pl-clickable:hover td { background: #e0f2fe !important; }
+  .indent.pl-clickable td:first-child::after { content: " \u2197"; font-size: 9px; color: #0ea5e9; opacity: 0; transition: opacity 0.15s; }
+  tr.indent.pl-clickable:hover td:first-child::after { opacity: 1; }
 
   .chart-wrap { position: relative; width: 100%; height: 260px; }
   .chart-wrap-tall { position: relative; width: 100%; height: 320px; }
@@ -191,11 +204,31 @@
   </div>
 </div>
 
+<div id="txn-modal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="txn-modal-title">Transactions</div>
+        <div class="modal-sub" id="txn-modal-sub"></div>
+      </div>
+      <button class="modal-close" onclick="closeTxnModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <table class="data-table" id="txn-modal-table"></table>
+    </div>
+    <div class="modal-total">
+      <span id="txn-modal-count">0 transactions</span>
+      <span id="txn-modal-sum">$0</span>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script type="text/javascript">
 
 window.SHEET_ID = "1wRro4QgZEUn_RPLMas1S_C5gdz8WJDM0No8n8KgDjLE";
 window.charts = {};
+window.txnCache = null;
 Chart.defaults.color = "#64748b";
 Chart.defaults.borderColor = "#e2e8f0";
 
@@ -733,8 +766,14 @@ function makeTableWithGroups(el, rows, cols) {
     if (rowData.rowClass) { tr.className = rowData.rowClass; }
     if (rowData.isCategory) { tr.setAttribute("data-group-toggle", rowData.groupId); }
     if (rowData.isSub) {
-      tr.className = (tr.className ? tr.className + " " : "") + "sub-row";
+      tr.className = (tr.className ? tr.className + " " : "") + "sub-row pl-clickable";
       tr.setAttribute("data-group", rowData.groupId);
+      tr.setAttribute("data-account-name", rowData.cells[0].text);
+      tr.onclick = function (ev) {
+        if (ev && ev.stopPropagation) { ev.stopPropagation(); }
+        var acctName = this.getAttribute("data-account-name");
+        openTxnModal(acctName);
+      };
     }
     for (var k = 0; k < rowData.cells.length; k++) {
       var cell = rowData.cells[k];
@@ -746,6 +785,103 @@ function makeTableWithGroups(el, rows, cols) {
     tbody.appendChild(tr);
   }
   el.appendChild(tbody);
+}
+
+// ── TRANSACTION DRILL-DOWN ────────────────────────────────────────────────────
+function getTxnCache() {
+  if (window.txnCache) { return Promise.resolve(window.txnCache); }
+  return fetchRange("Transaction List!A1:L20000").then(function (rows) {
+    window.txnCache = rows;
+    return rows;
+  });
+}
+
+function openTxnModal(accountName) {
+  document.getElementById("txn-modal-title").textContent = accountName;
+  document.getElementById("txn-modal-sub").textContent = "Loading transactions...";
+  document.getElementById("txn-modal-table").innerHTML = "";
+  document.getElementById("txn-modal-count").textContent = "";
+  document.getElementById("txn-modal-sum").textContent = "";
+  document.getElementById("txn-modal").className = "modal-overlay show";
+
+  getTxnCache().then(function (rows) {
+    var headerRow = rows[0] || [];
+    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctnum: 10, acctname: 11 };
+    for (var hc = 0; hc < headerRow.length; hc++) {
+      var h = String(headerRow[hc] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
+      if (h === "date") { colIdx.date = hc; }
+      if (h === "period") { colIdx.period = hc; }
+      if (h === "type") { colIdx.type = hc; }
+      if (h.indexOf("document") !== -1) { colIdx.docnum = hc; }
+      if (h === "name") { colIdx.name = hc; }
+      if (h === "account") { colIdx.account = hc; }
+      if (h === "memo") { colIdx.memo = hc; }
+      if (h === "amount") { colIdx.amount = hc; }
+      if (h.indexOf("account name") !== -1) { colIdx.acctname = hc; }
+    }
+
+    var targetPeriod = window.periodLabels.cur;
+    var matches = [];
+    for (var i = 1; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r) { continue; }
+      var acctName = String(r[colIdx.acctname] || "").replace(/^\s+|\s+$/g, "");
+      if (acctName.toLowerCase() !== accountName.toLowerCase()) { continue; }
+      var periodTxt = String(r[colIdx.period] || "").replace(/^\s+|\s+$/g, "");
+      if (periodTxt.toLowerCase() !== targetPeriod.toLowerCase()) { continue; }
+      var amt = numVal(r[colIdx.amount]);
+      if (amt === 0) { continue; }
+      matches.push({
+        date: r[colIdx.date] || "",
+        type: r[colIdx.type] || "",
+        docnum: r[colIdx.docnum] || "",
+        name: r[colIdx.name] || "",
+        memo: r[colIdx.memo] || "",
+        amount: amt
+      });
+    }
+
+    matches.sort(function (a, b) {
+      var da = new Date(a.date);
+      var db = new Date(b.date);
+      if (isNaN(da.getTime()) || isNaN(db.getTime())) { return 0; }
+      return da.getTime() - db.getTime();
+    });
+
+    document.getElementById("txn-modal-sub").textContent = targetPeriod + " \u00B7 " + matches.length + " transaction" + (matches.length === 1 ? "" : "s");
+
+    var tableRows = [];
+    var total = 0;
+    for (var m = 0; m < matches.length; m++) {
+      var tx = matches[m];
+      total = total + tx.amount;
+      tableRows.push({
+        cells: [
+          { text: String(tx.date) },
+          { text: String(tx.type) },
+          { text: String(tx.docnum) },
+          { text: String(tx.name) },
+          { text: String(tx.memo) },
+          { text: fmtMoney(tx.amount), cls: tx.amount < 0 ? "neg" : "" }
+        ],
+        rowClass: ""
+      });
+    }
+
+    makeTable(document.getElementById("txn-modal-table"), tableRows, ["Date", "Type", "Doc #", "Name", "Memo", "Amount"]);
+    document.getElementById("txn-modal-count").textContent = matches.length + " transaction" + (matches.length === 1 ? "" : "s");
+    document.getElementById("txn-modal-sum").textContent = "Total: " + fmtMoney(total);
+
+    if (matches.length === 0) {
+      document.getElementById("txn-modal-table").innerHTML = "<tbody><tr><td style=\"text-align:center;color:#94a3b8;padding:24px;\">No transactions found for " + accountName + " in " + targetPeriod + ".</td></tr></tbody>";
+    }
+  }, function (e) {
+    document.getElementById("txn-modal-sub").textContent = "Could not load transactions: " + e.message;
+  });
+}
+
+function closeTxnModal() {
+  document.getElementById("txn-modal").className = "modal-overlay";
 }
 
 function loadPL() {
