@@ -159,8 +159,12 @@
       </div>
     </div>
     <div class="card">
-      <div class="card-title">AI Period Narrative</div>
+      <div class="card-title">Executive Narrative</div>
       <div class="narrative" id="narrative">Generating summary...</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Top 3 Variances This Period</div>
+      <div id="top3-drivers">Analyzing key drivers...</div>
     </div>
   </div>
 </div>
@@ -437,8 +441,9 @@ function plGet(pl, lbl) {
 function loadSummary() {
   document.getElementById("summary-loading").style.display = "flex";
   document.getElementById("summary-content").style.display = "none";
-  return Promise.all([fetchRange("CALC_PL!A1:H80"), fetchRange("CALC_BS!A1:H80")]).then(function (results) {
+  return Promise.all([fetchRange("CALC_PL!A1:H80"), fetchRange("CALC_BS!A1:H80"), fetchRange("CALC_CF!A1:H60")]).then(function (results) {
     var bsRowsRaw = results[1];
+    var cfRowsRaw = results[2];
     var pl = parsePLRows(results[0]);
 
     var nr = plGet(pl, "TOTAL NET REVENUE");
@@ -447,17 +452,33 @@ function loadSummary() {
     var opex = plGet(pl, "TOTAL OPERATING EXPENSES");
     var gm = plGet(pl, "Gross Margin %");
     var em = plGet(pl, "EBITDA Margin %");
+    var ni = plGet(pl, "NET INCOME");
 
     var cashCur = 0;
     var cashPrv = 0;
+    var totalAssetsCur = 0, totalAssetsPrv = 0;
+    var totalLiabCur = 0, totalLiabPrv = 0;
+    var arCur = 0, arPrv = 0;
+    var apCur = 0, apPrv = 0;
     for (var i = 0; i < bsRowsRaw.length; i++) {
       var r = bsRowsRaw[i];
-      if (String(r[0] || "").toLowerCase().indexOf("cash & equivalents") !== -1) {
-        cashCur = numVal(r[2]);
-        cashPrv = numVal(r[3]);
-      }
+      var lbl = String(r[0] || "").toLowerCase();
+      if (lbl.indexOf("cash & equivalents") !== -1) { cashCur = numVal(r[2]); cashPrv = numVal(r[3]); }
+      if (lbl.indexOf("total assets") !== -1) { totalAssetsCur = numVal(r[2]); totalAssetsPrv = numVal(r[3]); }
+      if (lbl.indexOf("total liabilities") !== -1) { totalLiabCur = numVal(r[2]); totalLiabPrv = numVal(r[3]); }
+      if (lbl.indexOf("accounts receivable") !== -1) { arCur = numVal(r[2]); arPrv = numVal(r[3]); }
+      if (lbl.indexOf("accounts payable") !== -1) { apCur = numVal(r[2]); apPrv = numVal(r[3]); }
     }
     var cashChg = cashCur - cashPrv;
+
+    var netCashOps = 0, netCashInv = 0, netCashFin = 0;
+    for (var ci = 0; ci < cfRowsRaw.length; ci++) {
+      var cr = cfRowsRaw[ci];
+      var clbl = String(cr[0] || "").toLowerCase();
+      if (clbl === "net cash from operations") { netCashOps = numVal(cr[2] || cr[1]); }
+      if (clbl === "net cash from investing") { netCashInv = numVal(cr[2] || cr[1]); }
+      if (clbl === "net cash from financing") { netCashFin = numVal(cr[2] || cr[1]); }
+    }
 
     var cardsData = [
       { lbl: "Net Revenue", val: fmtMoney(nr.cur), delta: (nr.varP >= 0 ? "Up " : "Down ") + Math.abs(nr.varP).toFixed(1) + "% vs prior", sub: "YTD: " + fmtMoney(nr.ytdCur), dir: nr.varP >= 0 ? "pos" : "neg" },
@@ -486,10 +507,10 @@ function loadSummary() {
       if (row.type !== "grp" && !row.isPct && Math.abs(row.varP) >= 5 && Math.abs(row.varD) >= 10000) { flags.push(row); }
     }
     flags.sort(function (a, b) { return Math.abs(b.varP) - Math.abs(a.varP); });
-    flags = flags.slice(0, 6);
+    var topFlags = flags.slice(0, 6);
     var alertsEl = document.getElementById("top-alerts");
     alertsEl.innerHTML = "";
-    if (flags.length === 0) {
+    if (topFlags.length === 0) {
       var none = document.createElement("div");
       none.style.color = "#64748b";
       none.style.fontSize = "12px";
@@ -497,8 +518,8 @@ function loadSummary() {
       none.textContent = "No major variances this period.";
       alertsEl.appendChild(none);
     } else {
-      for (var g = 0; g < flags.length; g++) {
-        var fr = flags[g];
+      for (var g = 0; g < topFlags.length; g++) {
+        var fr = topFlags[g];
         var cls = favClass(fr.varD, fr.label);
         var sev = Math.abs(fr.varP) >= 40 ? "red" : (Math.abs(fr.varP) >= 15 ? "amber" : "green");
         var adiv = document.createElement("div");
@@ -535,36 +556,55 @@ function loadSummary() {
     document.getElementById("leg-cur").textContent = window.periodLabels.cur;
     document.getElementById("leg-prv").textContent = window.periodLabels.prior;
 
-    generateNarrative(nr, gp, eb, opex, gm, em, cashCur, cashChg);
+    var bsCtx = {
+      cashCur: cashCur, cashPrv: cashPrv, cashChg: cashChg,
+      totalAssetsCur: totalAssetsCur, totalAssetsPrv: totalAssetsPrv,
+      totalLiabCur: totalLiabCur, totalLiabPrv: totalLiabPrv,
+      arCur: arCur, arPrv: arPrv, apCur: apCur, apPrv: apPrv
+    };
+    var cfCtx = { netCashOps: netCashOps, netCashInv: netCashInv, netCashFin: netCashFin };
+
+    generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx);
+    renderTop3Drivers(flags.slice(0, 3));
     setLoaded("summary");
   }, function (e) {
     setError("summary", "Could not load summary: " + e.message);
   });
 }
 
-function fallbackNarrative(nr, gp, eb, opex, cashCur, cashChg) {
-  var p1 = window.periodLabels.cur + " results show net revenue of " + fmtMoney(nr.cur) + ", " + (nr.varP >= 0 ? "up" : "down") + " " + Math.abs(nr.varP).toFixed(1) + "% versus " + window.periodLabels.prior + ". Gross profit came in at " + fmtMoney(gp.cur) + ". EBITDA was " + fmtMoney(eb.cur) + " compared to " + fmtMoney(eb.prv) + " in the prior period.";
-  var p2 = "Operating expenses totaled " + fmtMoney(opex.cur) + ", " + (opex.varP >= 0 ? "up" : "down") + " " + Math.abs(opex.varP).toFixed(1) + "% versus prior.";
-  var p3 = "Cash & equivalents stood at " + fmtMoney(cashCur) + ", " + (cashChg >= 0 ? "an increase" : "a decrease") + " of " + fmtMoney(Math.abs(cashChg)) + " from the prior period.";
+function fallbackNarrative(nr, gp, eb, opex, ni, bsCtx, cfCtx) {
+  var p1 = "P&L: " + window.periodLabels.cur + " net revenue was " + fmtMoney(nr.cur) + " (" + (nr.varP >= 0 ? "+" : "") + nr.varP.toFixed(1) + "% vs prior), with gross profit of " + fmtMoney(gp.cur) + " and EBITDA of " + fmtMoney(eb.cur) + " versus " + fmtMoney(eb.prv) + " prior.";
+  var p2 = "Balance Sheet: Cash stood at " + fmtMoney(bsCtx.cashCur) + " (" + (bsCtx.cashChg >= 0 ? "+" : "") + fmtMoney(bsCtx.cashChg) + " vs prior), with total assets of " + fmtMoney(bsCtx.totalAssetsCur) + " and AR of " + fmtMoney(bsCtx.arCur) + ".";
+  var p3 = "Cash Flow: Operations generated " + fmtMoney(cfCtx.netCashOps) + ", investing activity was " + fmtMoney(cfCtx.netCashInv) + ", and financing activity was " + fmtMoney(cfCtx.netCashFin) + ".";
   return p1 + "\n\n" + p2 + "\n\n" + p3;
 }
 
-function generateNarrative(nr, gp, eb, opex, gm, em, cashCur, cashChg) {
+function generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx) {
   var promptParts = [];
-  promptParts.push("You are a CFO writing a concise executive summary for a board audience.");
-  promptParts.push("Write 3 short paragraphs (under 200 words) for " + window.periodLabels.cur + " vs " + window.periodLabels.prior + ". Be direct, professional, no bullet points.");
-  promptParts.push("Key figures:");
+  promptParts.push("You are a CFO writing a concise multi-section executive summary for a board audience, covering " + window.periodLabels.cur + " vs " + window.periodLabels.prior + ".");
+  promptParts.push("Write exactly 3 short paragraphs, one each for P&L, Balance Sheet, and Cash Flow. Each paragraph should be 2-3 sentences, direct and professional, no bullet points. Label each paragraph with a bold-style prefix like 'P&L:', 'Balance Sheet:', 'Cash Flow:' at the start.");
+  promptParts.push("P&L data:");
   promptParts.push("- Net Revenue: " + fmtMoney(nr.cur) + " (" + (nr.varP >= 0 ? "+" : "") + nr.varP.toFixed(1) + "% vs prior) | YTD: " + fmtMoney(nr.ytdCur));
   promptParts.push("- Gross Profit: " + fmtMoney(gp.cur) + " | Margin: " + gm.cur.toFixed(1) + "% (prior: " + gm.prv.toFixed(1) + "%)");
   promptParts.push("- Total OpEx: " + fmtMoney(opex.cur) + " (" + (opex.varP >= 0 ? "+" : "") + opex.varP.toFixed(1) + "% vs prior)");
   promptParts.push("- EBITDA: " + fmtMoney(eb.cur) + " (" + em.cur.toFixed(1) + "% margin) vs " + fmtMoney(eb.prv) + " prior");
-  promptParts.push("- Cash: " + fmtMoney(cashCur) + " (" + (cashChg >= 0 ? "+" : "") + fmtMoney(cashChg) + " vs prior)");
+  promptParts.push("- Net Income: " + fmtMoney(ni.cur));
+  promptParts.push("Balance Sheet data:");
+  promptParts.push("- Cash & Equivalents: " + fmtMoney(bsCtx.cashCur) + " (" + (bsCtx.cashChg >= 0 ? "+" : "") + fmtMoney(bsCtx.cashChg) + " vs prior)");
+  promptParts.push("- Total Assets: " + fmtMoney(bsCtx.totalAssetsCur) + " (prior: " + fmtMoney(bsCtx.totalAssetsPrv) + ")");
+  promptParts.push("- Total Liabilities: " + fmtMoney(bsCtx.totalLiabCur) + " (prior: " + fmtMoney(bsCtx.totalLiabPrv) + ")");
+  promptParts.push("- Accounts Receivable: " + fmtMoney(bsCtx.arCur) + " (prior: " + fmtMoney(bsCtx.arPrv) + ")");
+  promptParts.push("- Accounts Payable: " + fmtMoney(bsCtx.apCur) + " (prior: " + fmtMoney(bsCtx.apPrv) + ")");
+  promptParts.push("Cash Flow data:");
+  promptParts.push("- Net Cash from Operations: " + fmtMoney(cfCtx.netCashOps));
+  promptParts.push("- Net Cash from Investing: " + fmtMoney(cfCtx.netCashInv));
+  promptParts.push("- Net Cash from Financing: " + fmtMoney(cfCtx.netCashFin));
   var prompt = promptParts.join("\n");
 
   fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 500, messages: [{ role: "user", content: prompt }] })
+    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 700, messages: [{ role: "user", content: prompt }] })
   }).then(function (res) {
     return res.json();
   }).then(function (data) {
@@ -574,9 +614,83 @@ function generateNarrative(nr, gp, eb, opex, gm, em, cashCur, cashChg) {
         if (data.content[i].type === "text") { txt = data.content[i].text; break; }
       }
     }
-    document.getElementById("narrative").textContent = txt || fallbackNarrative(nr, gp, eb, opex, cashCur, cashChg);
+    document.getElementById("narrative").textContent = txt || fallbackNarrative(nr, gp, eb, opex, ni, bsCtx, cfCtx);
   }, function () {
-    document.getElementById("narrative").textContent = fallbackNarrative(nr, gp, eb, opex, cashCur, cashChg);
+    document.getElementById("narrative").textContent = fallbackNarrative(nr, gp, eb, opex, ni, bsCtx, cfCtx);
+  });
+}
+
+// ── TOP 3 DRIVERS: find the largest underlying transaction for each top variance ──
+function renderTop3Drivers(topVariances) {
+  var container = document.getElementById("top3-drivers");
+  if (!topVariances || topVariances.length === 0) {
+    container.innerHTML = "<div style=\"color:#64748b;font-size:12px;padding:8px 0;\">No major variances to highlight this period.</div>";
+    return;
+  }
+
+  container.innerHTML = "<div style=\"color:#64748b;font-size:12px;padding:8px 0;\">Analyzing underlying transactions...</div>";
+
+  getTxnCache().then(function (rows) {
+    var headerRow = rows[0] || [];
+    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctname: 11 };
+    for (var hc = 0; hc < headerRow.length; hc++) {
+      var h = String(headerRow[hc] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
+      if (h === "date") { colIdx.date = hc; }
+      if (h === "period") { colIdx.period = hc; }
+      if (h === "type") { colIdx.type = hc; }
+      if (h.indexOf("document") !== -1) { colIdx.docnum = hc; }
+      if (h === "name") { colIdx.name = hc; }
+      if (h === "memo") { colIdx.memo = hc; }
+      if (h === "amount") { colIdx.amount = hc; }
+      if (h.indexOf("account name") !== -1) { colIdx.acctname = hc; }
+    }
+
+    var targetPeriod = window.periodLabels.cur;
+    var html = "";
+
+    for (var v = 0; v < topVariances.length; v++) {
+      var variance = topVariances[v];
+      var matches = [];
+      for (var i = 1; i < rows.length; i++) {
+        var r = rows[i];
+        if (!r) { continue; }
+        var acctName = String(r[colIdx.acctname] || "").replace(/^\s+|\s+$/g, "");
+        if (acctName.toLowerCase() !== variance.label.toLowerCase()) { continue; }
+        var periodTxt = String(r[colIdx.period] || "").replace(/^\s+|\s+$/g, "");
+        if (periodTxt.toLowerCase() !== targetPeriod.toLowerCase()) { continue; }
+        var amt = numVal(r[colIdx.amount]);
+        if (amt === 0) { continue; }
+        matches.push({ name: r[colIdx.name] || "", amount: amt, docnum: r[colIdx.docnum] || "", date: r[colIdx.date] || "" });
+      }
+
+      matches.sort(function (a, b) { return Math.abs(b.amount) - Math.abs(a.amount); });
+      var top2 = matches.slice(0, 2);
+
+      var cls = favClass(variance.varD, variance.label);
+      var sev = Math.abs(variance.varP) >= 40 ? "red" : (Math.abs(variance.varP) >= 15 ? "amber" : "green");
+
+      html += "<div style=\"margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #f1f5f9;\">";
+      html += "<div style=\"display:flex;align-items:center;gap:8px;margin-bottom:6px;\">";
+      html += "<div class=\"alert-dot dot-" + sev + "\"></div>";
+      html += "<div style=\"font-weight:700;font-size:13px;color:#0f172a;\">" + (v + 1) + ". " + variance.label + "</div>";
+      html += "<span class=\"" + cls + "\" style=\"font-size:12px;font-weight:600;\">" + fmtMoney(variance.varD) + " (" + (variance.varP > 0 ? "+" : "") + variance.varP.toFixed(1) + "%)</span>";
+      html += "</div>";
+
+      if (top2.length === 0) {
+        html += "<div style=\"font-size:11px;color:#94a3b8;padding-left:18px;\">No individual transactions found for " + targetPeriod + " (may be a recurring/accrual entry).</div>";
+      } else {
+        html += "<div style=\"font-size:11px;color:#64748b;padding-left:18px;\">Largest contributing transaction" + (top2.length > 1 ? "s" : "") + ":</div>";
+        for (var t = 0; t < top2.length; t++) {
+          var tx = top2[t];
+          html += "<div style=\"font-size:12px;color:#334155;padding-left:18px;margin-top:3px;\">&bull; " + fmtMoney(tx.amount) + " \u2014 " + tx.name + (tx.docnum ? " (" + tx.docnum + ")" : "") + (tx.date ? ", " + tx.date : "") + "</div>";
+        }
+      }
+      html += "</div>";
+    }
+
+    container.innerHTML = html;
+  }, function (e) {
+    container.innerHTML = "<div style=\"color:#dc2626;font-size:12px;\">Could not load transaction detail: " + e.message + "</div>";
   });
 }
 
