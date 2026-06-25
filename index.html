@@ -80,8 +80,9 @@
   .indent.pl-clickable td:first-child::after { content: " \u2197"; font-size: 9px; color: #0ea5e9; opacity: 0; transition: opacity 0.15s; }
   tr.indent.pl-clickable:hover td:first-child::after { opacity: 1; }
 
-  .chart-wrap { position: relative; width: 100%; height: 260px; }
+  .chart-wrap { position: relative; width: 100%; height: 180px; }
   .chart-wrap-tall { position: relative; width: 100%; height: 320px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
   .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
   .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem; color: #64748b; gap: 12px; }
@@ -116,8 +117,21 @@
 
 <div class="dash-header">
   <div class="header-brand">
-    <svg class="logo-mark" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-      <path d="M24 4 C 14 10, 8 20, 10 32 C 11 38, 16 42, 22 42 C 18 36, 17 28, 22 20 C 17 26, 17 32, 20 36 C 16 30, 17 20, 26 12 C 22 18, 22 24, 26 28 C 24 20, 27 12, 36 8 C 30 14, 29 22, 33 28 C 32 18, 36 10, 24 4 Z" fill="#2dd4bf"/>
+    <svg class="logo-mark" width="140" height="38" viewBox="0 0 200 54" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="waveGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#5eead4"/>
+          <stop offset="100%" stop-color="#0d9488"/>
+        </linearGradient>
+        <linearGradient id="waveGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#2dd4bf"/>
+          <stop offset="100%" stop-color="#0f766e"/>
+        </linearGradient>
+      </defs>
+      <path d="M14 22 C 22 6, 30 6, 38 22 C 30 12, 24 12, 18 26 Z" fill="url(#waveGrad1)"/>
+      <path d="M24 24 C 32 4, 42 4, 50 22 C 41 9, 33 9, 27 27 Z" fill="url(#waveGrad2)"/>
+      <path d="M34 25 C 42 5, 52 5, 60 23 C 51 10, 43 10, 37 28 Z" fill="#5eead4"/>
+      <text x="0" y="48" font-family="Arial, sans-serif" font-weight="800" font-size="20" fill="#ffffff">stem<tspan fill="#2dd4bf">wave</tspan></text>
     </svg>
     <div>
       <div class="dash-title">Kostopoulos Investment Holdings — StemWave</div>
@@ -146,20 +160,22 @@
   <div id="summary-loading" class="loading"><div class="spinner"></div>Fetching data...</div>
   <div id="summary-content" style="display:none;">
     <div class="kpi-grid" id="kpi-grid"></div>
-    <div class="card">
-      <div class="card-title">Top Variance Alerts</div>
-      <div id="top-alerts"></div>
-    </div>
-    <div class="card">
-      <div class="card-title">Top 3 Variances This Period</div>
-      <div id="top3-drivers">Analyzing key drivers...</div>
-    </div>
-    <div class="card">
-      <div class="card-title">Revenue vs. OpEx</div>
-      <div class="chart-wrap"><canvas id="rev-chart"></canvas></div>
-      <div class="legend">
-        <span><span class="legend-dot" style="background:#0ea5e9"></span><span id="leg-cur">Current</span></span>
-        <span><span class="legend-dot" style="background:#bae6fd"></span><span id="leg-prv">Prior</span></span>
+    <div class="three-col">
+      <div class="card">
+        <div class="card-title">Top Variance Alerts</div>
+        <div id="top-alerts"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Top 3 Variances This Period</div>
+        <div id="top3-drivers">Analyzing key drivers...</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Revenue vs. OpEx</div>
+        <div class="chart-wrap"><canvas id="rev-chart"></canvas></div>
+        <div class="legend">
+          <span><span class="legend-dot" style="background:#0ea5e9"></span><span id="leg-cur">Current</span></span>
+          <span><span class="legend-dot" style="background:#bae6fd"></span><span id="leg-prv">Prior</span></span>
+        </div>
       </div>
     </div>
     <div class="card">
@@ -438,6 +454,13 @@ function plGet(pl, lbl) {
   return { cur: 0, prv: 0, varP: 0, varD: 0, ytdCur: 0, ytdPrv: 0 };
 }
 
+var SUMMARY_METRIC_LABELS = {
+  "GROSS PROFIT": true, "EBITDA": true, "EBIT": true, "NET INCOME": true,
+  "TOTAL NET REVENUE": true, "TOTAL OPERATING EXPENSES": true, "INCOME BEFORE TAX": true,
+  "GROSS MARGIN %": true, "EBITDA MARGIN %": true, "NET PROFIT MARGIN %": true,
+  "INCOME TAX EXPENSE": true
+};
+
 function loadSummary() {
   document.getElementById("summary-loading").style.display = "flex";
   document.getElementById("summary-content").style.display = "none";
@@ -504,7 +527,7 @@ function loadSummary() {
     var flags = [];
     for (var f = 0; f < pl.length; f++) {
       var row = pl[f];
-      if (row.type !== "grp" && !row.isPct && Math.abs(row.varP) >= 5 && Math.abs(row.varD) >= 10000) { flags.push(row); }
+      if (row.type !== "grp" && !row.isPct && !SUMMARY_METRIC_LABELS[row.label.toUpperCase()] && Math.abs(row.varP) >= 5 && Math.abs(row.varD) >= 10000) { flags.push(row); }
     }
     flags.sort(function (a, b) { return Math.abs(b.varP) - Math.abs(a.varP); });
     var topFlags = flags.slice(0, 6);
@@ -667,18 +690,12 @@ function generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx, kpiCtx) {
 }
 
 // ── TOP 3 DRIVERS: only real P&L accounts/subaccounts, never summary metrics ──
-var SUMMARY_METRIC_LABELS = {
-  "GROSS PROFIT": true, "EBITDA": true, "EBIT": true, "NET INCOME": true,
-  "TOTAL NET REVENUE": true, "TOTAL OPERATING EXPENSES": true, "INCOME BEFORE TAX": true,
-  "Gross Margin %": true, "EBITDA Margin %": true, "Net Profit Margin %": true
-};
-
 function renderTop3Drivers(allFlags) {
   var container = document.getElementById("top3-drivers");
 
   var accountFlags = [];
   for (var i = 0; i < allFlags.length; i++) {
-    if (!SUMMARY_METRIC_LABELS[allFlags[i].label]) { accountFlags.push(allFlags[i]); }
+    if (!SUMMARY_METRIC_LABELS[allFlags[i].label.toUpperCase()]) { accountFlags.push(allFlags[i]); }
   }
   var topVariances = accountFlags.slice(0, 3);
 
