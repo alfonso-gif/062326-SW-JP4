@@ -116,7 +116,9 @@
 
 <div class="dash-header">
   <div class="header-brand">
-    <div class="logo-mark">SW</div>
+    <svg class="logo-mark" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+      <path d="M24 4 C 14 10, 8 20, 10 32 C 11 38, 16 42, 22 42 C 18 36, 17 28, 22 20 C 17 26, 17 32, 20 36 C 16 30, 17 20, 26 12 C 22 18, 22 24, 26 28 C 24 20, 27 12, 36 8 C 30 14, 29 22, 33 28 C 32 18, 36 10, 24 4 Z" fill="#2dd4bf"/>
+    </svg>
     <div>
       <div class="dash-title">Kostopoulos Investment Holdings — StemWave</div>
       <div class="dash-sub">Executive Financial Dashboard &middot; Live from Google Sheets</div>
@@ -144,27 +146,25 @@
   <div id="summary-loading" class="loading"><div class="spinner"></div>Fetching data...</div>
   <div id="summary-content" style="display:none;">
     <div class="kpi-grid" id="kpi-grid"></div>
-    <div class="two-col">
-      <div class="card">
-        <div class="card-title">Top Variance Alerts</div>
-        <div id="top-alerts"></div>
-      </div>
-      <div class="card">
-        <div class="card-title">Revenue vs. OpEx</div>
-        <div class="chart-wrap"><canvas id="rev-chart"></canvas></div>
-        <div class="legend">
-          <span><span class="legend-dot" style="background:#0ea5e9"></span><span id="leg-cur">Current</span></span>
-          <span><span class="legend-dot" style="background:#bae6fd"></span><span id="leg-prv">Prior</span></span>
-        </div>
+    <div class="card">
+      <div class="card-title">Top Variance Alerts</div>
+      <div id="top-alerts"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Top 3 Variances This Period</div>
+      <div id="top3-drivers">Analyzing key drivers...</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Revenue vs. OpEx</div>
+      <div class="chart-wrap"><canvas id="rev-chart"></canvas></div>
+      <div class="legend">
+        <span><span class="legend-dot" style="background:#0ea5e9"></span><span id="leg-cur">Current</span></span>
+        <span><span class="legend-dot" style="background:#bae6fd"></span><span id="leg-prv">Prior</span></span>
       </div>
     </div>
     <div class="card">
       <div class="card-title">Executive Narrative</div>
       <div class="narrative" id="narrative">Generating summary...</div>
-    </div>
-    <div class="card">
-      <div class="card-title">Top 3 Variances This Period</div>
-      <div id="top3-drivers">Analyzing key drivers...</div>
     </div>
   </div>
 </div>
@@ -564,25 +564,63 @@ function loadSummary() {
     };
     var cfCtx = { netCashOps: netCashOps, netCashInv: netCashInv, netCashFin: netCashFin };
 
-    generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx);
-    renderTop3Drivers(flags.slice(0, 3));
+    var totalCurAssets = 0, totalCurLiab = 0;
+    for (var bi = 0; bi < bsRowsRaw.length; bi++) {
+      var blbl = String(bsRowsRaw[bi][0] || "").toLowerCase();
+      if (blbl.indexOf("total current assets") !== -1) { totalCurAssets = numVal(bsRowsRaw[bi][2]); }
+      if (blbl.indexOf("total current liabilities") !== -1) { totalCurLiab = numVal(bsRowsRaw[bi][2]); }
+    }
+    var totalEquityForKpi = totalAssetsCur - totalLiabCur;
+    var kpiCtx = {
+      gm: gm.cur, em: em.cur,
+      cr: totalCurLiab ? (totalCurAssets / totalCurLiab) : 0,
+      qr: totalCurLiab ? ((cashCur + arCur) / totalCurLiab) : 0,
+      de: totalEquityForKpi ? (totalLiabCur / totalEquityForKpi) : 0,
+      yoy: nr.ytdPrv ? ((nr.ytdCur - nr.ytdPrv) / nr.ytdPrv * 100) : 0,
+      mom: nr.varP
+    };
+
+    generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx, kpiCtx);
+    renderTop3Drivers(flags);
     setLoaded("summary");
   }, function (e) {
     setError("summary", "Could not load summary: " + e.message);
   });
 }
 
-function fallbackNarrative(nr, gp, eb, opex, ni, bsCtx, cfCtx) {
+function renderNarrativeHtml(text) {
+  var paragraphs = text.split(/\n\s*\n/);
+  var html = "";
+  var knownLabels = ["P&L:", "Balance Sheet:", "Cash Flow:", "KPIs:", "KPI:"];
+  for (var p = 0; p < paragraphs.length; p++) {
+    var para = paragraphs[p].replace(/^\s+|\s+$/g, "");
+    if (!para) { continue; }
+    var matchedLabel = "";
+    for (var l = 0; l < knownLabels.length; l++) {
+      if (para.indexOf(knownLabels[l]) === 0) { matchedLabel = knownLabels[l]; break; }
+    }
+    if (matchedLabel) {
+      var rest = para.substring(matchedLabel.length);
+      html += "<p><strong>" + matchedLabel + "</strong>" + rest + "</p>";
+    } else {
+      html += "<p>" + para + "</p>";
+    }
+  }
+  return html;
+}
+
+function fallbackNarrative(nr, gp, eb, opex, ni, bsCtx, cfCtx, kpiCtx) {
   var p1 = "P&L: " + window.periodLabels.cur + " net revenue was " + fmtMoney(nr.cur) + " (" + (nr.varP >= 0 ? "+" : "") + nr.varP.toFixed(1) + "% vs prior), with gross profit of " + fmtMoney(gp.cur) + " and EBITDA of " + fmtMoney(eb.cur) + " versus " + fmtMoney(eb.prv) + " prior.";
   var p2 = "Balance Sheet: Cash stood at " + fmtMoney(bsCtx.cashCur) + " (" + (bsCtx.cashChg >= 0 ? "+" : "") + fmtMoney(bsCtx.cashChg) + " vs prior), with total assets of " + fmtMoney(bsCtx.totalAssetsCur) + " and AR of " + fmtMoney(bsCtx.arCur) + ".";
   var p3 = "Cash Flow: Operations generated " + fmtMoney(cfCtx.netCashOps) + ", investing activity was " + fmtMoney(cfCtx.netCashInv) + ", and financing activity was " + fmtMoney(cfCtx.netCashFin) + ".";
-  return p1 + "\n\n" + p2 + "\n\n" + p3;
+  var p4 = "KPIs: Gross margin was " + kpiCtx.gm.toFixed(1) + "%, current ratio " + kpiCtx.cr.toFixed(2) + ", and revenue growth YoY " + kpiCtx.yoy.toFixed(1) + "%.";
+  return p1 + "\n\n" + p2 + "\n\n" + p3 + "\n\n" + p4;
 }
 
-function generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx) {
+function generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx, kpiCtx) {
   var promptParts = [];
   promptParts.push("You are a CFO writing a concise multi-section executive summary for a board audience, covering " + window.periodLabels.cur + " vs " + window.periodLabels.prior + ".");
-  promptParts.push("Write exactly 3 short paragraphs, one each for P&L, Balance Sheet, and Cash Flow. Each paragraph should be 2-3 sentences, direct and professional, no bullet points. Label each paragraph with a bold-style prefix like 'P&L:', 'Balance Sheet:', 'Cash Flow:' at the start.");
+  promptParts.push("Write exactly 4 short paragraphs, one each for P&L, Balance Sheet, Cash Flow, and KPIs. Each paragraph should be 2-3 sentences, direct and professional, no bullet points. Label each paragraph with a prefix like 'P&L:', 'Balance Sheet:', 'Cash Flow:', 'KPIs:' at the start.");
   promptParts.push("P&L data:");
   promptParts.push("- Net Revenue: " + fmtMoney(nr.cur) + " (" + (nr.varP >= 0 ? "+" : "") + nr.varP.toFixed(1) + "% vs prior) | YTD: " + fmtMoney(nr.ytdCur));
   promptParts.push("- Gross Profit: " + fmtMoney(gp.cur) + " | Margin: " + gm.cur.toFixed(1) + "% (prior: " + gm.prv.toFixed(1) + "%)");
@@ -599,12 +637,20 @@ function generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx) {
   promptParts.push("- Net Cash from Operations: " + fmtMoney(cfCtx.netCashOps));
   promptParts.push("- Net Cash from Investing: " + fmtMoney(cfCtx.netCashInv));
   promptParts.push("- Net Cash from Financing: " + fmtMoney(cfCtx.netCashFin));
+  promptParts.push("KPI data:");
+  promptParts.push("- Gross Margin: " + kpiCtx.gm.toFixed(1) + "%");
+  promptParts.push("- EBITDA Margin: " + kpiCtx.em.toFixed(1) + "%");
+  promptParts.push("- Current Ratio: " + kpiCtx.cr.toFixed(2));
+  promptParts.push("- Quick Ratio: " + kpiCtx.qr.toFixed(2));
+  promptParts.push("- Debt-to-Equity: " + kpiCtx.de.toFixed(2));
+  promptParts.push("- Revenue Growth YoY: " + kpiCtx.yoy.toFixed(1) + "%");
+  promptParts.push("- Revenue Growth MoM: " + kpiCtx.mom.toFixed(1) + "%");
   var prompt = promptParts.join("\n");
 
   fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 700, messages: [{ role: "user", content: prompt }] })
+    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 800, messages: [{ role: "user", content: prompt }] })
   }).then(function (res) {
     return res.json();
   }).then(function (data) {
@@ -614,17 +660,30 @@ function generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx) {
         if (data.content[i].type === "text") { txt = data.content[i].text; break; }
       }
     }
-    document.getElementById("narrative").textContent = txt || fallbackNarrative(nr, gp, eb, opex, ni, bsCtx, cfCtx);
+    document.getElementById("narrative").innerHTML = renderNarrativeHtml(txt || fallbackNarrative(nr, gp, eb, opex, ni, bsCtx, cfCtx, kpiCtx));
   }, function () {
-    document.getElementById("narrative").textContent = fallbackNarrative(nr, gp, eb, opex, ni, bsCtx, cfCtx);
+    document.getElementById("narrative").innerHTML = renderNarrativeHtml(fallbackNarrative(nr, gp, eb, opex, ni, bsCtx, cfCtx, kpiCtx));
   });
 }
 
-// ── TOP 3 DRIVERS: find the largest underlying transaction for each top variance ──
-function renderTop3Drivers(topVariances) {
+// ── TOP 3 DRIVERS: only real P&L accounts/subaccounts, never summary metrics ──
+var SUMMARY_METRIC_LABELS = {
+  "GROSS PROFIT": true, "EBITDA": true, "EBIT": true, "NET INCOME": true,
+  "TOTAL NET REVENUE": true, "TOTAL OPERATING EXPENSES": true, "INCOME BEFORE TAX": true,
+  "Gross Margin %": true, "EBITDA Margin %": true, "Net Profit Margin %": true
+};
+
+function renderTop3Drivers(allFlags) {
   var container = document.getElementById("top3-drivers");
+
+  var accountFlags = [];
+  for (var i = 0; i < allFlags.length; i++) {
+    if (!SUMMARY_METRIC_LABELS[allFlags[i].label]) { accountFlags.push(allFlags[i]); }
+  }
+  var topVariances = accountFlags.slice(0, 3);
+
   if (!topVariances || topVariances.length === 0) {
-    container.innerHTML = "<div style=\"color:#64748b;font-size:12px;padding:8px 0;\">No major variances to highlight this period.</div>";
+    container.innerHTML = "<div style=\"color:#64748b;font-size:12px;padding:8px 0;\">No major account-level variances to highlight this period.</div>";
     return;
   }
 
