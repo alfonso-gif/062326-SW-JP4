@@ -532,7 +532,7 @@ function renderNarrativeHtml(text) {
 function loadSummary() {
   document.getElementById("summary-loading").style.display = "flex";
   document.getElementById("summary-content").style.display = "none";
-  return Promise.all([fetchRange("CALC_PL!A1:H80"), fetchRange("CALC_BS!A1:H80"), fetchRange("CALC_CF!A1:H60")]).then(function (results) {
+  return Promise.all([fetchRange("CALC_PL!A1:H80"), fetchRange("CALC_BS!A1:H80"), fetchRange("CALC_CF!A1:H60"), fetchRange("CALC_PL with Sub-accounts!A1:H300")]).then(function (results) {
     var bsRowsRaw = results[1];
     var cfRowsRaw = results[2];
     var pl = parsePLRows(results[0]);
@@ -595,7 +595,7 @@ function loadSummary() {
     }
 
     var flags = [];
-    var plWithSubInfo = parsePLRowsWithSubInfo(results[0]);
+    var plWithSubInfo = parsePLRowsWithSubInfo(results[3]);
     for (var f = 0; f < plWithSubInfo.length; f++) {
       var row = plWithSubInfo[f];
       if (row.type === "grp") { continue; }
