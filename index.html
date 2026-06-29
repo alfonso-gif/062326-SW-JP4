@@ -18,17 +18,17 @@
   .refresh-btn { font-size: 12px; padding: 6px 13px; cursor: pointer; border: 1px solid #e2e8f0; background: #fff; border-radius: 7px; color: #64748b; }
   .refresh-btn:hover { background: #f1f5f9; color: #0f172a; }
 
-  .nav-wrap { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 0 24px; overflow-x: auto; }
-  .nav-groups { display: flex; align-items: stretch; }
-  .nav-group { display: flex; flex-direction: column; border-right: 1px solid #e2e8f0; }
-  .nav-group:last-child { border-right: none; }
-  .nav-group-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; text-align: center; padding: 8px 16px 6px; border-bottom: 1px solid #e2e8f0; }
+  .nav-wrap { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 14px 24px; overflow-x: auto; }
+  .nav-groups { display: flex; align-items: flex-end; gap: 28px; }
+  .nav-group { display: flex; flex-direction: column; gap: 8px; }
+  .nav-group-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; padding-left: 4px; }
   .nav-group-label.invisible { visibility: hidden; }
-  .nav-group-tabs { display: flex; flex: 1; align-items: stretch; }
-  .tab { font-size: 12px; padding: 10px 16px; cursor: pointer; border: none; background: none; color: #64748b; border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 500; white-space: nowrap; }
-  .tab.active { color: #0ea5e9; border-bottom-color: #0ea5e9; }
-  .tab:hover { color: #0f172a; }
-  .tab.standalone { padding: 8px 16px; align-self: center; }
+  .nav-group-tabs { display: flex; gap: 4px; background: #f1f5f9; border-radius: 9px; padding: 3px; }
+  .tab { font-size: 12.5px; padding: 7px 14px; cursor: pointer; border: none; background: none; color: #64748b; border-radius: 6px; font-weight: 500; white-space: nowrap; transition: all 0.15s; }
+  .tab.active { color: #fff; background: #0ea5e9; box-shadow: 0 1px 2px rgba(14,165,233,.3); }
+  .tab:hover:not(.active) { color: #0f172a; background: #e2e8f0; }
+  .tab.standalone { padding: 9px 18px; font-size: 13px; font-weight: 600; border-radius: 8px; background: #f1f5f9; }
+  .tab.standalone.active { background: #0ea5e9; }
 
   .section { display: none; padding: 20px 24px 32px; background: #f5f6f8; }
   .section.active { display: block; }
