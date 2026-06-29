@@ -23,7 +23,8 @@
   .nav-group { display: flex; flex-direction: column; border-right: 1px solid #e2e8f0; }
   .nav-group:last-child { border-right: none; }
   .nav-group-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; text-align: center; padding: 8px 16px 6px; border-bottom: 1px solid #e2e8f0; }
-  .nav-group-tabs { display: flex; }
+  .nav-group-label.invisible { visibility: hidden; }
+  .nav-group-tabs { display: flex; flex: 1; align-items: stretch; }
   .tab { font-size: 12px; padding: 10px 16px; cursor: pointer; border: none; background: none; color: #64748b; border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 500; white-space: nowrap; }
   .tab.active { color: #0ea5e9; border-bottom-color: #0ea5e9; }
   .tab:hover { color: #0f172a; }
@@ -109,7 +110,7 @@
 
   .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(15,23,42,.5); z-index: 1000; align-items: center; justify-content: center; padding: 24px; }
   .modal-overlay.show { display: flex; }
-  .modal-box { background: #fff; border-radius: 12px; max-width: 1200px; width: 95%; max-height: 82vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+  .modal-box { background: #fff; border-radius: 12px; max-width: 1200px; width: 95%; max-height: 82vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
   .modal-header { padding: 16px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
   .modal-title { font-size: 14px; font-weight: 700; color: #0f172a; }
   .modal-sub { font-size: 11px; color: #64748b; margin-top: 2px; }
@@ -146,7 +147,7 @@
 <div class="nav-wrap">
   <div class="nav-groups">
     <div class="nav-group">
-      <div class="nav-group-label" style="visibility:hidden;">.</div>
+      <div class="nav-group-label invisible">.</div>
       <div class="nav-group-tabs">
         <button class="tab standalone active" onclick="showTab('summary', this)">Executive Summary</button>
       </div>
@@ -209,13 +210,13 @@
 <div id="section-pl" class="section">
   <div id="pl-loading" class="loading"><div class="spinner"></div>Loading P&amp;L...</div>
   <div id="pl-content" style="display:none;">
-    <div class="card"><div class="card-title">Profit &amp; Loss</div><table class="data-table" id="pl-table"></table><div class="debug-line" id="pl-debug" style="font-size:11px;color:#94a3b8;margin-top:10px;"></div></div>
+    <div class="card"><div class="card-title">Profit &amp; Loss (Monthly)</div><table class="data-table" id="pl-table"></table></div>
   </div>
 </div>
 
 <div id="section-pldaily" class="section">
   <div class="card">
-    <div class="card-title">Daily P&amp;L</div>
+    <div class="card-title">Profit &amp; Loss (Daily)</div>
     <div style="text-align:center;color:#94a3b8;padding:48px 24px;font-size:13px;">
       Daily P&amp;L tab is being set up in the spreadsheet.<br>This view will populate automatically once it's ready.
     </div>
@@ -283,9 +284,11 @@ function showTab(name, el) {
   var sections = document.querySelectorAll(".section");
   for (var i = 0; i < sections.length; i++) { sections[i].className = "section"; }
   var tabs = document.querySelectorAll(".tab");
-  for (var j = 0; j < tabs.length; j++) { tabs[j].className = "tab"; }
+  for (var j = 0; j < tabs.length; j++) {
+    tabs[j].className = tabs[j].className.indexOf("standalone") !== -1 ? "tab standalone" : "tab";
+  }
   document.getElementById("section-" + name).className = "section active";
-  el.className = "tab active";
+  el.className = el.className.indexOf("standalone") !== -1 ? "tab standalone active" : "tab active";
 }
 
 function parseCSV(text) {
@@ -1170,21 +1173,12 @@ function loadPL() {
     var colHeaders = ["Line Item", periodCur, periodPrv, "Current YTD", "Prior YTD", "Variance $", "Variance %"];
     var dataRows = [];
 
-    var countCategory = 0;
-    var countSubaccount = 0;
-    var countTotal = 0;
-    var countHeader = 0;
-    var countSkipZero = 0;
-    var countSkipBlank = 0;
     var currentGroupId = -1;
 
     for (var i = 1; i < rows.length; i++) {
       var r = rows[i];
 
-      if (!r || r.length < 1) {
-        countSkipBlank = countSkipBlank + 1;
-        continue;
-      }
+      if (!r || r.length < 1) { continue; }
 
       var cellA = r[0];
       var cellB = r[1];
@@ -1196,23 +1190,14 @@ function loadPL() {
       var rowLabel = rawA.replace(/^-+\s*/, "").replace(/\s*-+$/, "").replace(/^\s+|\s+$/g, "");
       var categoryRaw = rawB.replace(/^\s+|\s+$/g, "");
 
-      if (rowLabel.length === 0 && categoryRaw.length === 0) {
-        countSkipBlank = countSkipBlank + 1;
-        continue;
-      }
-      if (rowLabel === "Row Label") {
-        countSkipBlank = countSkipBlank + 1;
-        continue;
-      }
+      if (rowLabel.length === 0 && categoryRaw.length === 0) { continue; }
+      if (rowLabel === "Row Label") { continue; }
 
       var isSubaccount = (rowLabel.length === 0) && (categoryRaw.length > 0);
       var displayLabel = "";
       if (isSubaccount) { displayLabel = categoryRaw; } else { displayLabel = rowLabel; }
 
-      if (displayLabel.length === 0) {
-        countSkipBlank = countSkipBlank + 1;
-        continue;
-      }
+      if (displayLabel.length === 0) { continue; }
 
       var ll = displayLabel.toLowerCase();
       var isTotal = false;
@@ -1242,16 +1227,8 @@ function loadPL() {
       if (isSubaccount === true) {
         var subCur = numVal(r[2]);
         var subPrv = numVal(r[3]);
-        if (subCur === 0 && subPrv === 0) {
-          countSkipZero = countSkipZero + 1;
-          continue;
-        }
+        if (subCur === 0 && subPrv === 0) { continue; }
       }
-
-      if (isSubaccount === true) { countSubaccount = countSubaccount + 1; }
-      else if (isTotal === true) { countTotal = countTotal + 1; }
-      else if (isSectionHeader === true) { countHeader = countHeader + 1; }
-      else if (isCategoryRow === true) { countCategory = countCategory + 1; }
 
       var cellCls = "";
       if (isSubaccount === true) { cellCls = "indent"; }
@@ -1326,12 +1303,6 @@ function loadPL() {
 
     makeTableWithGroups(document.getElementById("pl-table"), dataRows, colHeaders);
     wirePLToggles();
-
-    var debugText = "[debug] fetched: " + rows.length + " | rendered: " + dataRows.length;
-    debugText = debugText + " | category: " + countCategory + " | subaccount: " + countSubaccount;
-    debugText = debugText + " | total: " + countTotal + " | header: " + countHeader;
-    debugText = debugText + " | skippedZero: " + countSkipZero + " | skippedBlank: " + countSkipBlank;
-    document.getElementById("pl-debug").textContent = debugText;
 
     setLoaded("pl");
   }, function (e) {
