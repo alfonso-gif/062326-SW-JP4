@@ -178,7 +178,8 @@
     <div class="three-col">
       <div class="card">
         <div class="card-title">Top Variance Alerts</div>
-        <div id="top-alerts"></div>
+        <div class="chart-wrap"><canvas id="alerts-chart"></canvas></div>
+        <div id="top-alerts-legend" style="margin-top:8px;"></div>
       </div>
       <div class="card">
         <div class="card-title">Top 3 Variances This Period</div>
@@ -642,30 +643,7 @@ function loadSummary() {
     }
     flags.sort(function (a, b) { return Math.abs(b.varP) - Math.abs(a.varP); });
     var topFlags = flags.slice(0, 6);
-    var alertsEl = document.getElementById("top-alerts");
-    alertsEl.innerHTML = "";
-    if (topFlags.length === 0) {
-      var none = document.createElement("div");
-      none.style.color = "#64748b";
-      none.style.fontSize = "12px";
-      none.style.padding = "8px 0";
-      none.textContent = "No major variances this period.";
-      alertsEl.appendChild(none);
-    } else {
-      for (var g = 0; g < topFlags.length; g++) {
-        var fr = topFlags[g];
-        var cls = favClass(fr.varD, fr.label);
-        var sev = Math.abs(fr.varP) >= 40 ? "red" : (Math.abs(fr.varP) >= 15 ? "amber" : "green");
-        var adiv = document.createElement("div");
-        adiv.className = "alert alert-" + sev;
-        var ahtml = "<div class=\"alert-dot dot-" + sev + "\"></div>";
-        ahtml += "<div class=\"alert-name\">" + fr.label + "</div>";
-        ahtml += "<span class=\"" + cls + "\">" + fmtMoney(fr.varD) + "</span>&nbsp;";
-        ahtml += "<span class=\"" + cls + "\">" + (fr.varP > 0 ? "+" : "") + fr.varP.toFixed(1) + "%</span>";
-        adiv.innerHTML = ahtml;
-        alertsEl.appendChild(adiv);
-      }
-    }
+    renderAlertsPie(flags);
 
     destroyChart("rev");
     window.charts.rev = new Chart(document.getElementById("rev-chart"), {
@@ -713,6 +691,74 @@ function loadSummary() {
   }, function (e) {
     setError("summary", "Could not load summary: " + e.message);
   });
+}
+
+function renderAlertsPie(allFlags) {
+  var byDollar = allFlags.slice().sort(function (a, b) { return Math.abs(b.varD) - Math.abs(a.varD); });
+
+  var canvas = document.getElementById("alerts-chart");
+  var legendEl = document.getElementById("top-alerts-legend");
+
+  if (!byDollar || byDollar.length === 0) {
+    destroyChart("alerts");
+    legendEl.innerHTML = "<div style=\"color:#64748b;font-size:12px;padding:8px 0;text-align:center;\">No major variances this period.</div>";
+    return;
+  }
+
+  var top5 = byDollar.slice(0, 5);
+  var rest = byDollar.slice(5);
+  var othersTotal = 0;
+  for (var i = 0; i < rest.length; i++) { othersTotal = othersTotal + Math.abs(rest[i].varD); }
+
+  var labels = [];
+  var data = [];
+  var colors = ["#ef4444", "#f59e0b", "#0ea5e9", "#8b5cf6", "#10b981", "#cbd5e1"];
+
+  for (var t = 0; t < top5.length; t++) {
+    labels.push(top5[t].label);
+    data.push(Math.abs(top5[t].varD));
+  }
+  if (othersTotal > 0) {
+    labels.push("Others (" + rest.length + ")");
+    data.push(othersTotal);
+  }
+
+  destroyChart("alerts");
+  window.charts.alerts = new Chart(canvas, {
+    type: "doughnut",
+    data: {
+      labels: labels,
+      datasets: [{ data: data, backgroundColor: colors, borderWidth: 2, borderColor: "#fff" }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: "55%",
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: function (c) { return c.label + ": " + fmtMoney(c.raw); } } }
+      }
+    }
+  });
+
+  var legendHtml = "";
+  for (var l = 0; l < top5.length; l++) {
+    var fr = top5[l];
+    var cls = favClass(fr.varD, fr.label);
+    legendHtml += "<div style=\"display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11.5px;\">";
+    legendHtml += "<span style=\"width:9px;height:9px;border-radius:2px;background:" + colors[l] + ";flex-shrink:0;\"></span>";
+    legendHtml += "<span style=\"flex:1;color:#334155;\">" + fr.label + "</span>";
+    legendHtml += "<span class=\"" + cls + "\" style=\"font-weight:600;\">" + fmtMoney(fr.varD) + "</span>";
+    legendHtml += "</div>";
+  }
+  if (othersTotal > 0) {
+    legendHtml += "<div style=\"display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11.5px;\">";
+    legendHtml += "<span style=\"width:9px;height:9px;border-radius:2px;background:#cbd5e1;flex-shrink:0;\"></span>";
+    legendHtml += "<span style=\"flex:1;color:#94a3b8;\">Others (" + rest.length + " items)</span>";
+    legendHtml += "<span style=\"color:#94a3b8;font-weight:600;\">" + fmtMoney(othersTotal) + "</span>";
+    legendHtml += "</div>";
+  }
+  legendEl.innerHTML = legendHtml;
 }
 
 function fallbackNarrative(nr, gp, eb, opex, ni, bsCtx, cfCtx, kpiCtx) {
