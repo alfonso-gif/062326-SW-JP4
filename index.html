@@ -18,10 +18,16 @@
   .refresh-btn { font-size: 12px; padding: 6px 13px; cursor: pointer; border: 1px solid #e2e8f0; background: #fff; border-radius: 7px; color: #64748b; }
   .refresh-btn:hover { background: #f1f5f9; color: #0f172a; }
 
-  .tab-bar { display: flex; gap: 2px; border-bottom: 1px solid #e2e8f0; background: #fff; padding: 0 24px; overflow-x: auto; }
-  .tab { font-size: 12px; padding: 12px 16px; cursor: pointer; border: none; background: none; color: #64748b; border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 500; white-space: nowrap; }
+  .nav-wrap { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 0 24px; overflow-x: auto; }
+  .nav-groups { display: flex; align-items: stretch; }
+  .nav-group { display: flex; flex-direction: column; border-right: 1px solid #e2e8f0; }
+  .nav-group:last-child { border-right: none; }
+  .nav-group-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; text-align: center; padding: 8px 16px 6px; border-bottom: 1px solid #e2e8f0; }
+  .nav-group-tabs { display: flex; }
+  .tab { font-size: 12px; padding: 10px 16px; cursor: pointer; border: none; background: none; color: #64748b; border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 500; white-space: nowrap; }
   .tab.active { color: #0ea5e9; border-bottom-color: #0ea5e9; }
   .tab:hover { color: #0f172a; }
+  .tab.standalone { padding: 8px 16px; align-self: center; }
 
   .section { display: none; padding: 20px 24px 32px; background: #f5f6f8; }
   .section.active { display: block; }
@@ -137,13 +143,31 @@
 <div id="conn-test" class="conn-bar">Testing connection to Google Sheets... <span id="conn-status"></span></div>
 <div id="global-error" class="error-msg" style="display:none; margin: 0 24px 14px;"></div>
 
-<div class="tab-bar">
-  <button class="tab active" onclick="showTab('summary', this)">Executive Summary</button>
-  <button class="tab" onclick="showTab('kpi', this)">KPIs</button>
-  <button class="tab" onclick="showTab('pl', this)">P&amp;L</button>
-  <button class="tab" onclick="showTab('bs', this)">Balance Sheet</button>
-  <button class="tab" onclick="showTab('cf', this)">Cash Flow</button>
-  <button class="tab" onclick="showTab('forecast', this)">13-Week</button>
+<div class="nav-wrap">
+  <div class="nav-groups">
+    <div class="nav-group">
+      <div class="nav-group-label" style="visibility:hidden;">.</div>
+      <div class="nav-group-tabs">
+        <button class="tab standalone active" onclick="showTab('summary', this)">Executive Summary</button>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Monthly</div>
+      <div class="nav-group-tabs">
+        <button class="tab" onclick="showTab('kpi', this)">KPIs</button>
+        <button class="tab" onclick="showTab('pl', this)">P&amp;L</button>
+        <button class="tab" onclick="showTab('bs', this)">Balance Sheet</button>
+        <button class="tab" onclick="showTab('cf', this)">Cash Flow</button>
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Daily</div>
+      <div class="nav-group-tabs">
+        <button class="tab" onclick="showTab('pldaily', this)">P&amp;L</button>
+        <button class="tab" onclick="showTab('forecast', this)">13-Week</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div id="section-summary" class="section active">
@@ -186,6 +210,15 @@
   <div id="pl-loading" class="loading"><div class="spinner"></div>Loading P&amp;L...</div>
   <div id="pl-content" style="display:none;">
     <div class="card"><div class="card-title">Profit &amp; Loss</div><table class="data-table" id="pl-table"></table><div class="debug-line" id="pl-debug" style="font-size:11px;color:#94a3b8;margin-top:10px;"></div></div>
+  </div>
+</div>
+
+<div id="section-pldaily" class="section">
+  <div class="card">
+    <div class="card-title">Daily P&amp;L</div>
+    <div style="text-align:center;color:#94a3b8;padding:48px 24px;font-size:13px;">
+      Daily P&amp;L tab is being set up in the spreadsheet.<br>This view will populate automatically once it's ready.
+    </div>
   </div>
 </div>
 
