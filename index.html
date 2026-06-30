@@ -384,6 +384,22 @@ function fmtMoney(v) {
   return sign + "$" + abs.toFixed(0);
 }
 
+function fmtPctVal(v) {
+  var n = typeof v === "number" ? v : numVal(v);
+  var abs = Math.abs(n);
+  var sign = n < 0 ? "-" : "";
+  if (abs >= 1000) { return sign + (abs / 1000).toFixed(2) + "K%"; }
+  return sign + abs.toFixed(2) + "%";
+}
+
+function fmtPPVal(v) {
+  var n = typeof v === "number" ? v : numVal(v);
+  var abs = Math.abs(n);
+  var sign = n < 0 ? "-" : "";
+  if (abs >= 1000) { return sign + (abs / 1000).toFixed(2) + "K pp"; }
+  return sign + abs.toFixed(2) + "pp";
+}
+
 function destroyChart(id) {
   if (window.charts[id]) {
     window.charts[id].destroy();
@@ -1052,7 +1068,7 @@ function openKpiModal(key) {
   document.getElementById("kpi-modal-sub").textContent = d.sub;
 
   function fmtRow(v, isPct) {
-    if (isPct) { return v.toFixed(2) + "%"; }
+    if (isPct) { return fmtPctVal(v); }
     return fmtMoney(v);
   }
 
@@ -1062,7 +1078,7 @@ function openKpiModal(key) {
     var varAmt = r.cur - r.prv;
     var varTxt;
     if (r.hideVariance) { varTxt = ""; }
-    else if (r.isPct) { varTxt = (varAmt >= 0 ? "+" : "") + varAmt.toFixed(1) + "pp"; }
+    else if (r.isPct) { varTxt = (varAmt >= 0 ? "+" : "-") + fmtPPVal(Math.abs(varAmt)); }
     else { varTxt = (varAmt >= 0 ? "+" : "") + fmtMoney(varAmt); }
     rows.push({
       cells: [
@@ -1113,7 +1129,7 @@ function loadKPI() {
       var d = curVal - prvVal;
       var dir = d >= 0 ? "pos" : "neg";
       var arrow = d >= 0 ? "Up" : "Down";
-      var txt = isPctVal ? Math.abs(d).toFixed(1) + "pp" : Math.abs(d).toFixed(2);
+      var txt = isPctVal ? fmtPPVal(Math.abs(d)) : Math.abs(d).toFixed(2);
       return { dir: dir, html: arrow + " by " + txt + " vs prior" };
     }
 
@@ -1156,7 +1172,7 @@ function loadKPI() {
     function card(label, curVal, prvVal, isPctVal, isCurrency, decimals, clickKey) {
       var d = deltaTxt(curVal, prvVal, isPctVal);
       var fmtVal;
-      if (isPctVal) { fmtVal = curVal.toFixed(2) + "%"; }
+      if (isPctVal) { fmtVal = fmtPctVal(curVal); }
       else if (isCurrency) { fmtVal = fmtMoney(curVal); }
       else { fmtVal = curVal.toFixed(decimals !== undefined ? decimals : 2); }
       var clickAttr = clickKey ? " onclick=\"openKpiModal('" + clickKey + "')\" style=\"cursor:pointer;\" title=\"Click for detail\"" : "";
