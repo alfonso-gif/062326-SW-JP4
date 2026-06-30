@@ -400,6 +400,16 @@ function fmtPPVal(v) {
   return sign + abs.toFixed(2) + "pp";
 }
 
+function fmtRatioVal(v, decimals) {
+  var n = typeof v === "number" ? v : numVal(v);
+  var abs = Math.abs(n);
+  var sign = n < 0 ? "-" : "";
+  var d = decimals !== undefined ? decimals : 2;
+  if (abs >= 1000000) { return sign + (abs / 1000000).toFixed(2) + "M"; }
+  if (abs >= 1000) { return sign + (abs / 1000).toFixed(2) + "K"; }
+  return sign + abs.toFixed(d);
+}
+
 function destroyChart(id) {
   if (window.charts[id]) {
     window.charts[id].destroy();
@@ -1125,11 +1135,14 @@ function loadKPI() {
     function ratio(a, b) { return b ? a / b : 0; }
     function pct(a, b) { return b ? (a / b * 100) : 0; }
 
-    function deltaTxt(curVal, prvVal, isPctVal) {
+    function deltaTxt(curVal, prvVal, isPctVal, isCurrency, decimals) {
       var d = curVal - prvVal;
       var dir = d >= 0 ? "pos" : "neg";
       var arrow = d >= 0 ? "Up" : "Down";
-      var txt = isPctVal ? fmtPPVal(Math.abs(d)) : Math.abs(d).toFixed(2);
+      var txt;
+      if (isPctVal) { txt = fmtPPVal(Math.abs(d)); }
+      else if (isCurrency) { txt = fmtMoney(Math.abs(d)); }
+      else { txt = fmtRatioVal(Math.abs(d), decimals); }
       return { dir: dir, html: arrow + " by " + txt + " vs prior" };
     }
 
@@ -1170,11 +1183,11 @@ function loadKPI() {
     var revMoM = nr.varP;
 
     function card(label, curVal, prvVal, isPctVal, isCurrency, decimals, clickKey) {
-      var d = deltaTxt(curVal, prvVal, isPctVal);
+      var d = deltaTxt(curVal, prvVal, isPctVal, isCurrency, decimals);
       var fmtVal;
       if (isPctVal) { fmtVal = fmtPctVal(curVal); }
       else if (isCurrency) { fmtVal = fmtMoney(curVal); }
-      else { fmtVal = curVal.toFixed(decimals !== undefined ? decimals : 2); }
+      else { fmtVal = fmtRatioVal(curVal, decimals); }
       var clickAttr = clickKey ? " onclick=\"openKpiModal('" + clickKey + "')\" style=\"cursor:pointer;\" title=\"Click for detail\"" : "";
       return "<div class=\"kpi-card\"" + clickAttr + "><div class=\"kpi-label\">" + label + "</div><div class=\"kpi-value\" style=\"font-size:18px;\">" + fmtVal + "</div><div class=\"kpi-sub " + d.dir + "\">" + d.html + "</div></div>";
     }
