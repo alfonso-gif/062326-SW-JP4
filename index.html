@@ -584,8 +584,12 @@ function favClass(varD, label) {
 }
 
 function plGet(pl, lbl) {
+  var llbl = lbl.toUpperCase();
   for (var i = 0; i < pl.length; i++) {
-    if (pl[i].label.toUpperCase() === lbl.toUpperCase()) { return pl[i]; }
+    if (pl[i].label.toUpperCase() === llbl) { return pl[i]; }
+  }
+  for (var j = 0; j < pl.length; j++) {
+    if (pl[j].label.toUpperCase().indexOf(llbl) !== -1) { return pl[j]; }
   }
   return { cur: 0, prv: 0, varP: 0, varD: 0, ytdCur: 0, ytdPrv: 0 };
 }
@@ -1048,11 +1052,26 @@ function closeTxnModal() {
 function bsGet(bsRows, label) {
   var cur = 0;
   var prv = 0;
+  var ll = label.toLowerCase();
+  var found = false;
   for (var i = 0; i < bsRows.length; i++) {
     var r = bsRows[i];
-    if (String(r[0] || "").toLowerCase().replace(/^\s+|\s+$/g, "") === label.toLowerCase()) {
+    if (String(r[0] || "").toLowerCase().replace(/^\s+|\s+$/g, "") === ll) {
       cur = numVal(r[2]);
       prv = numVal(r[3]);
+      found = true;
+    }
+  }
+  if (!found) {
+    for (var j = 0; j < bsRows.length; j++) {
+      var r2 = bsRows[j];
+      var rowLabel = String(r2[0] || "").toLowerCase().replace(/^\s+|\s+$/g, "");
+      if (rowLabel.indexOf(ll) !== -1) {
+        cur = numVal(r2[2]);
+        prv = numVal(r2[3]);
+        found = true;
+        break;
+      }
     }
   }
   return { cur: cur, prv: prv };
