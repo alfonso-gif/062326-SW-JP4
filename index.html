@@ -123,6 +123,8 @@
   .modal-body th, .modal-body td { white-space: nowrap; }
   .modal-body th:nth-child(4), .modal-body td:nth-child(4) { min-width: 200px; white-space: normal; }
   .modal-body th:nth-child(5), .modal-body td:nth-child(5) { min-width: 240px; white-space: normal; }
+  #kpi-modal-table th, #kpi-modal-table td { min-width: 0; white-space: nowrap; }
+  #kpi-modal-table th:not(:first-child), #kpi-modal-table td:not(:first-child) { width: 110px; }
   .modal-total { padding: 12px 20px; border-top: 1px solid #e2e8f0; font-size: 12px; font-weight: 700; display: flex; justify-content: space-between; background: #f8fafc; }
 
   @media (max-width: 640px) { .two-col, .three-col { grid-template-columns: 1fr; } .kpi-value { font-size: 17px; } .tab { padding: 8px 10px; font-size: 11px; } }
@@ -1059,14 +1061,15 @@ function openKpiModal(key) {
     var r = d.rows[i];
     var varAmt = r.cur - r.prv;
     var varTxt;
-    if (r.isPct) { varTxt = (varAmt >= 0 ? "+" : "") + varAmt.toFixed(1) + "pp"; }
+    if (r.hideVariance) { varTxt = ""; }
+    else if (r.isPct) { varTxt = (varAmt >= 0 ? "+" : "") + varAmt.toFixed(1) + "pp"; }
     else { varTxt = (varAmt >= 0 ? "+" : "") + fmtMoney(varAmt); }
     rows.push({
       cells: [
         { text: r.label, cls: "" },
         { text: fmtRow(r.cur, r.isPct), cls: "" },
         { text: fmtRow(r.prv, r.isPct), cls: "" },
-        { text: varTxt, cls: varAmt < 0 ? "neg" : "pos" }
+        { text: varTxt, cls: (r.hideVariance ? "" : (varAmt < 0 ? "neg" : "pos")) }
       ],
       rowClass: r.bold ? "row-total" : ""
     });
@@ -1168,7 +1171,7 @@ function loadKPI() {
         { label: "Net Revenue", cur: nr.cur, prv: nr.prv },
         { label: "Cost of Goods Sold", cur: cogs.cur, prv: cogs.prv },
         { label: "Gross Profit", cur: gp.cur, prv: gp.prv, bold: true },
-        { label: "Gross Margin %", cur: grossMarginCur, prv: grossMarginPrv, isPct: true, bold: true }
+        { label: "Gross Margin %", cur: grossMarginCur, prv: grossMarginPrv, isPct: true, bold: true, hideVariance: true }
       ]
     };
 
