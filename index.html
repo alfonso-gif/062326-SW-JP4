@@ -38,6 +38,8 @@
 
   .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 14px; }
   .kpi-card { background: #fff; border-radius: 10px; padding: 14px 16px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .kpi-card[onclick] { transition: box-shadow 0.15s, border-color 0.15s; }
+  .kpi-card[onclick]:hover { box-shadow: 0 2px 8px rgba(14,165,233,0.18); border-color: #bae6fd; }
   .kpi-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; font-weight: 600; }
   .kpi-value { font-size: 20px; font-weight: 700; line-height: 1; letter-spacing: -0.5px; color: #0f172a; }
   .kpi-sub { font-size: 11px; margin-top: 6px; font-weight: 500; }
@@ -268,6 +270,21 @@
     <div class="modal-total">
       <span id="txn-modal-count">0 transactions</span>
       <span id="txn-modal-sum">$0</span>
+    </div>
+  </div>
+</div>
+
+<div id="kpi-modal" class="modal-overlay">
+  <div class="modal-box" style="max-width:640px;">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="kpi-modal-title">KPI Detail</div>
+        <div class="modal-sub" id="kpi-modal-sub"></div>
+      </div>
+      <button class="modal-close" onclick="closeKpiModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <table class="data-table" id="kpi-modal-table"></table>
     </div>
   </div>
 </div>
@@ -1022,6 +1039,42 @@ function cfGet(cfRows, label) {
   return cur;
 }
 
+function closeKpiModal() {
+  document.getElementById("kpi-modal").className = "modal-overlay";
+}
+
+function openKpiModal(key) {
+  var d = window.kpiDetailData ? window.kpiDetailData[key] : null;
+  if (!d) { return; }
+  document.getElementById("kpi-modal-title").textContent = d.title;
+  document.getElementById("kpi-modal-sub").textContent = d.sub;
+
+  function fmtRow(v, isPct) {
+    if (isPct) { return v.toFixed(2) + "%"; }
+    return fmtMoney(v);
+  }
+
+  var rows = [];
+  for (var i = 0; i < d.rows.length; i++) {
+    var r = d.rows[i];
+    var varAmt = r.cur - r.prv;
+    var varTxt;
+    if (r.isPct) { varTxt = (varAmt >= 0 ? "+" : "") + varAmt.toFixed(1) + "pp"; }
+    else { varTxt = (varAmt >= 0 ? "+" : "") + fmtMoney(varAmt); }
+    rows.push({
+      cells: [
+        { text: r.label, cls: "" },
+        { text: fmtRow(r.cur, r.isPct), cls: "" },
+        { text: fmtRow(r.prv, r.isPct), cls: "" },
+        { text: varTxt, cls: varAmt < 0 ? "neg" : "pos" }
+      ],
+      rowClass: r.bold ? "row-total" : ""
+    });
+  }
+  makeTable(document.getElementById("kpi-modal-table"), rows, ["Line Item", window.periodLabels.cur, window.periodLabels.prior, "Variance"]);
+  document.getElementById("kpi-modal").className = "modal-overlay show";
+}
+
 function loadKPI() {
   document.getElementById("kpi-loading").style.display = "flex";
   document.getElementById("kpi-content").style.display = "none";
@@ -1097,18 +1150,31 @@ function loadKPI() {
     var revYoY = nr.ytdPrv ? pct(nr.ytdCur - nr.ytdPrv, nr.ytdPrv) : 0;
     var revMoM = nr.varP;
 
-    function card(label, curVal, prvVal, isPctVal, isCurrency, decimals) {
+    function card(label, curVal, prvVal, isPctVal, isCurrency, decimals, clickKey) {
       var d = deltaTxt(curVal, prvVal, isPctVal);
       var fmtVal;
       if (isPctVal) { fmtVal = curVal.toFixed(2) + "%"; }
       else if (isCurrency) { fmtVal = fmtMoney(curVal); }
       else { fmtVal = curVal.toFixed(decimals !== undefined ? decimals : 2); }
-      return "<div class=\"kpi-card\"><div class=\"kpi-label\">" + label + "</div><div class=\"kpi-value\" style=\"font-size:18px;\">" + fmtVal + "</div><div class=\"kpi-sub " + d.dir + "\">" + d.html + "</div></div>";
+      var clickAttr = clickKey ? " onclick=\"openKpiModal('" + clickKey + "')\" style=\"cursor:pointer;\" title=\"Click for detail\"" : "";
+      return "<div class=\"kpi-card\"" + clickAttr + "><div class=\"kpi-label\">" + label + "</div><div class=\"kpi-value\" style=\"font-size:18px;\">" + fmtVal + "</div><div class=\"kpi-sub " + d.dir + "\">" + d.html + "</div></div>";
     }
+
+    window.kpiDetailData = window.kpiDetailData || {};
+    window.kpiDetailData.grossmargin = {
+      title: "Gross Margin %",
+      sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
+      rows: [
+        { label: "Net Revenue", cur: nr.cur, prv: nr.prv },
+        { label: "Cost of Goods Sold", cur: cogs.cur, prv: cogs.prv },
+        { label: "Gross Profit", cur: gp.cur, prv: gp.prv, bold: true },
+        { label: "Gross Margin %", cur: grossMarginCur, prv: grossMarginPrv, isPct: true, bold: true }
+      ]
+    };
 
     var html = "";
     html += "<div class=\"card\"><div class=\"card-title\">Profitability Ratios</div><div class=\"kpi-grid\">";
-    html += card("Gross Margin %", grossMarginCur, grossMarginPrv, true);
+    html += card("Gross Margin %", grossMarginCur, grossMarginPrv, true, false, undefined, "grossmargin");
     html += card("EBITDA Margin %", ebitdaMarginCur, ebitdaMarginPrv, true);
     html += card("Net Profit Margin", netMarginCur, netMarginPrv, true);
     html += card("OpEx Ratio", opexRatioCur, opexRatioPrv, true);
