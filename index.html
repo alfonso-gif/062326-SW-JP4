@@ -396,8 +396,8 @@ function fmtPPVal(v) {
   var n = typeof v === "number" ? v : numVal(v);
   var abs = Math.abs(n);
   var sign = n < 0 ? "-" : "";
-  if (abs >= 1000) { return sign + (abs / 1000).toFixed(2) + "K pp"; }
-  return sign + abs.toFixed(2) + "pp";
+  if (abs >= 1000) { return sign + (abs / 1000).toFixed(2) + "K%"; }
+  return sign + abs.toFixed(2) + "%";
 }
 
 function fmtRatioVal(v, decimals) {
