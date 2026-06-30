@@ -794,14 +794,17 @@ function renderAlertsPie(allFlags) {
   for (var l = 0; l < top5.length; l++) {
     var fr = top5[l];
     var cls = favClass(fr.varD, fr.label);
-    legendHtml += "<div style=\"display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11.5px;\">";
+    legendHtml += "<div style=\"padding:5px 0;font-size:11.5px;border-bottom:1px solid #f1f5f9;\">";
+    legendHtml += "<div style=\"display:flex;align-items:center;gap:8px;\">";
     legendHtml += "<span style=\"width:9px;height:9px;border-radius:2px;background:" + colors[l] + ";flex-shrink:0;\"></span>";
-    legendHtml += "<span style=\"flex:1;color:#334155;\">" + fr.label + "</span>";
-    legendHtml += "<span class=\"" + cls + "\" style=\"font-weight:600;\">" + fmtMoney(fr.varD) + "</span>";
+    legendHtml += "<span style=\"flex:1;color:#334155;font-weight:500;\">" + fr.label + "</span>";
+    legendHtml += "<span class=\"" + cls + "\" style=\"font-weight:600;\">" + (fr.varD >= 0 ? "+" : "") + fmtMoney(fr.varD) + "</span>";
+    legendHtml += "</div>";
+    legendHtml += "<div style=\"padding-left:17px;color:#94a3b8;font-size:10.5px;margin-top:2px;\">" + window.periodLabels.cur + ": " + fmtMoney(fr.cur) + " &nbsp;vs&nbsp; " + window.periodLabels.prior + ": " + fmtMoney(fr.prv) + "</div>";
     legendHtml += "</div>";
   }
   if (othersTotal > 0) {
-    legendHtml += "<div style=\"display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11.5px;\">";
+    legendHtml += "<div style=\"display:flex;align-items:center;gap:8px;padding:5px 0;font-size:11.5px;\">";
     legendHtml += "<span style=\"width:9px;height:9px;border-radius:2px;background:#cbd5e1;flex-shrink:0;\"></span>";
     legendHtml += "<span style=\"flex:1;color:#94a3b8;\">Others (" + rest.length + " items)</span>";
     legendHtml += "<span style=\"color:#94a3b8;font-weight:600;\">" + fmtMoney(othersTotal) + "</span>";
@@ -811,10 +814,39 @@ function renderAlertsPie(allFlags) {
 }
 
 function fallbackNarrative(nr, gp, eb, opex, ni, bsCtx, cfCtx, kpiCtx) {
-  var p1 = "P&L: " + window.periodLabels.cur + " net revenue was " + fmtMoney(nr.cur) + " (" + (nr.varP >= 0 ? "+" : "") + nr.varP.toFixed(1) + "% vs prior), with gross profit of " + fmtMoney(gp.cur) + " and EBITDA of " + fmtMoney(eb.cur) + " versus " + fmtMoney(eb.prv) + " prior.";
-  var p2 = "Balance Sheet: Cash stood at " + fmtMoney(bsCtx.cashCur) + " (" + (bsCtx.cashChg >= 0 ? "+" : "") + fmtMoney(bsCtx.cashChg) + " vs prior), with total assets of " + fmtMoney(bsCtx.totalAssetsCur) + " and AR of " + fmtMoney(bsCtx.arCur) + ".";
-  var p3 = "Cash Flow: Operations generated " + fmtMoney(cfCtx.netCashOps) + ", investing activity was " + fmtMoney(cfCtx.netCashInv) + ", and financing activity was " + fmtMoney(cfCtx.netCashFin) + ".";
-  var p4 = "KPIs: Gross margin was " + kpiCtx.gm.toFixed(1) + "%, current ratio " + kpiCtx.cr.toFixed(2) + ", and revenue growth YoY " + kpiCtx.yoy.toFixed(1) + "%.";
+  var revDir = nr.varP >= 0 ? "increased" : "decreased";
+  var revWord = nr.varP >= 0 ? "growth" : "decline";
+  var gmTxt = (nr.cur ? (gp.cur / nr.cur * 100) : 0).toFixed(1);
+  var gmPrvTxt = (nr.prv ? (gp.prv / nr.prv * 100) : 0).toFixed(1);
+  var ebDir = eb.cur >= eb.prv ? "improved" : "softened";
+  var niWord = ni.cur >= 0 ? "positive" : "negative";
+
+  var p1 = "P&L: Net revenue for " + window.periodLabels.cur + " came in at " + fmtMoney(nr.cur) +
+    ", a " + Math.abs(nr.varP).toFixed(1) + "% " + revDir + " versus " + window.periodLabels.prior + " (" + fmtMoney(nr.prv) + "). " +
+    "On a year-to-date basis, revenue stands at " + fmtMoney(nr.ytdCur) + " compared with " + fmtMoney(nr.ytdPrv) + " in the same period last year. " +
+    "Gross profit was " + fmtMoney(gp.cur) + ", implying a gross margin of " + gmTxt + "%, versus " + gmPrvTxt + "% in the prior period \u2014 " +
+    "a trend worth monitoring closely given its direct read-through to unit economics. " +
+    "Total operating expenses were " + fmtMoney(opex.cur) + " (" + (opex.varP >= 0 ? "+" : "") + opex.varP.toFixed(1) + "% vs prior), and EBITDA " + ebDir + " to " + fmtMoney(eb.cur) + " from " + fmtMoney(eb.prv) + " in the prior period. " +
+    "Net income for the period was " + fmtMoney(ni.cur) + ", reflecting a " + niWord + " bottom line once financing costs and other non-operating items are layered in. " +
+    "Taken together, the revenue " + revWord + " combined with the margin and expense trajectory should inform how we calibrate spend and hiring plans heading into next period.";
+
+  var p2 = "Balance Sheet: Cash and equivalents ended the period at " + fmtMoney(bsCtx.cashCur) +
+    ", a change of " + (bsCtx.cashChg >= 0 ? "+" : "") + fmtMoney(bsCtx.cashChg) + " versus the prior period balance, which reflects the combined effect of operating performance, working capital movement, and any financing activity during the period. " +
+    "Total assets stood at " + fmtMoney(bsCtx.totalAssetsCur) + " against " + fmtMoney(bsCtx.totalAssetsPrv) + " previously, while total liabilities were " + fmtMoney(bsCtx.totalLiabCur) + " compared with " + fmtMoney(bsCtx.totalLiabPrv) + " prior. " +
+    "Accounts receivable totaled " + fmtMoney(bsCtx.arCur) + " against " + fmtMoney(bsCtx.arPrv) + " in the prior period, and accounts payable came in at " + fmtMoney(bsCtx.apCur) + " versus " + fmtMoney(bsCtx.apPrv) + " previously. " +
+    "The relative movement between receivables and payables is a useful signal for how working capital is being managed \u2014 a widening gap can tie up cash even when the P&L looks healthy, while a narrowing gap can free it up. " +
+    "We should continue watching the pace of collections relative to vendor terms so that cash conversion stays aligned with operating performance rather than lagging behind it.";
+
+  var p3 = "Cash Flow: Operating activities generated " + fmtMoney(cfCtx.netCashOps) + " in cash during the period, which is the cleanest read on whether the core business is self-funding. " +
+    "Investing activity contributed " + fmtMoney(cfCtx.netCashInv) + ", reflecting capital deployed into or recovered from longer-term assets, and financing activity was " + fmtMoney(cfCtx.netCashFin) + ", capturing any debt, equity, or owner-related cash movements. " +
+    "Together these three categories explain the full change in the cash balance referenced above, and the relative weighting between them matters: cash that is being generated organically through operations is generally a higher-quality signal than cash coming from financing activity. " +
+    "Going forward, the team should keep an eye on whether operating cash flow continues to track (or diverges from) net income, since a persistent gap between the two is often an early indicator of a working-capital or collections issue worth addressing proactively.";
+
+  var p4 = "KPIs: Gross margin for the period was " + kpiCtx.gm.toFixed(1) + "%, and the current ratio \u2014 a core measure of short-term liquidity \u2014 stood at " + kpiCtx.cr.toFixed(2) + ", with the quick ratio at " + kpiCtx.qr.toFixed(2) + ", indicating the extent to which current obligations are covered without relying on inventory or less liquid assets. " +
+    "Leverage, measured by debt-to-equity, was " + kpiCtx.de.toFixed(2) + ", which provides context for how much of the balance sheet is funded by liabilities versus owner capital and should be read alongside the cash and EBITDA trends above when assessing overall financial flexibility. " +
+    "Revenue growth came in at " + kpiCtx.yoy.toFixed(1) + "% year-over-year and " + kpiCtx.mom.toFixed(1) + "% versus the immediately prior period, giving both a long-term trajectory and a near-term pulse check on momentum. " +
+    "Taken as a whole, this set of ratios should be reviewed together rather than in isolation \u2014 margin trends inform pricing and cost decisions, liquidity ratios inform near-term operating flexibility, and leverage informs how much capacity remains for future investment or financing decisions.";
+
   return p1 + "\n\n" + p2 + "\n\n" + p3 + "\n\n" + p4;
 }
 
