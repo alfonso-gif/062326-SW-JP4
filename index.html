@@ -685,7 +685,7 @@ function loadSummary() {
       mom: nr.varP
     };
 
-    generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx, kpiCtx);
+    generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx, kpiCtx, flags);
     renderTop3Drivers(flags);
     setLoaded("summary");
   }, function (e) {
@@ -769,16 +769,19 @@ function fallbackNarrative(nr, gp, eb, opex, ni, bsCtx, cfCtx, kpiCtx) {
   return p1 + "\n\n" + p2 + "\n\n" + p3 + "\n\n" + p4;
 }
 
-function generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx, kpiCtx) {
+function generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx, kpiCtx, topFlags) {
   var promptParts = [];
-  promptParts.push("You are a CFO writing a concise multi-section executive summary for a board audience, covering " + window.periodLabels.cur + " vs " + window.periodLabels.prior + ".");
-  promptParts.push("Write exactly 4 short paragraphs, one each for P&L, Balance Sheet, Cash Flow, and KPIs. Each paragraph should be 2-3 sentences, direct and professional, no bullet points. Label each paragraph with a prefix like 'P&L:', 'Balance Sheet:', 'Cash Flow:', 'KPIs:' at the start.");
+  promptParts.push("You are a CFO writing a thorough, board-ready executive summary covering " + window.periodLabels.cur + " vs " + window.periodLabels.prior + ".");
+  promptParts.push("Write exactly 4 detailed paragraphs, one each for P&L, Balance Sheet, Cash Flow, and KPIs. Each paragraph should be 4-6 sentences \u2014 don't just state the numbers, explain what they mean, compare them to the prior period and YTD trend where relevant, flag anything notable or concerning, and connect related figures together (e.g. how a revenue change flows into margin and cash). Be direct, analytical, and professional, no bullet points. Label each paragraph with a prefix like 'P&L:', 'Balance Sheet:', 'Cash Flow:', 'KPIs:' at the start.");
   promptParts.push("P&L data:");
-  promptParts.push("- Net Revenue: " + fmtMoney(nr.cur) + " (" + (nr.varP >= 0 ? "+" : "") + nr.varP.toFixed(1) + "% vs prior) | YTD: " + fmtMoney(nr.ytdCur));
+  promptParts.push("- Net Revenue: " + fmtMoney(nr.cur) + " (" + (nr.varP >= 0 ? "+" : "") + nr.varP.toFixed(1) + "% vs prior) | YTD: " + fmtMoney(nr.ytdCur) + " (Prior YTD: " + fmtMoney(nr.ytdPrv) + ")");
   promptParts.push("- Gross Profit: " + fmtMoney(gp.cur) + " | Margin: " + gm.cur.toFixed(1) + "% (prior: " + gm.prv.toFixed(1) + "%)");
   promptParts.push("- Total OpEx: " + fmtMoney(opex.cur) + " (" + (opex.varP >= 0 ? "+" : "") + opex.varP.toFixed(1) + "% vs prior)");
   promptParts.push("- EBITDA: " + fmtMoney(eb.cur) + " (" + em.cur.toFixed(1) + "% margin) vs " + fmtMoney(eb.prv) + " prior");
   promptParts.push("- Net Income: " + fmtMoney(ni.cur));
+  if (topFlags && topFlags.length > 0) {
+    promptParts.push("- Largest individual line-item variances this period: " + topFlags.slice(0, 5).map(function (f) { return f.label + " (" + fmtMoney(f.varD) + ", " + (f.varP > 0 ? "+" : "") + f.varP.toFixed(1) + "%)"; }).join("; "));
+  }
   promptParts.push("Balance Sheet data:");
   promptParts.push("- Cash & Equivalents: " + fmtMoney(bsCtx.cashCur) + " (" + (bsCtx.cashChg >= 0 ? "+" : "") + fmtMoney(bsCtx.cashChg) + " vs prior)");
   promptParts.push("- Total Assets: " + fmtMoney(bsCtx.totalAssetsCur) + " (prior: " + fmtMoney(bsCtx.totalAssetsPrv) + ")");
@@ -802,7 +805,7 @@ function generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx, kpiCtx) {
   fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 800, messages: [{ role: "user", content: prompt }] })
+    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1400, messages: [{ role: "user", content: prompt }] })
   }).then(function (res) {
     return res.json();
   }).then(function (data) {
