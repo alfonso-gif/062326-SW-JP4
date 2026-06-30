@@ -1077,8 +1077,9 @@ function openKpiModal(key) {
   document.getElementById("kpi-modal-title").textContent = d.title;
   document.getElementById("kpi-modal-sub").textContent = d.sub;
 
-  function fmtRow(v, isPct) {
+  function fmtRow(v, isPct, isRatio) {
     if (isPct) { return fmtPctVal(v); }
+    if (isRatio) { return fmtRatioVal(v); }
     return fmtMoney(v);
   }
 
@@ -1089,12 +1090,13 @@ function openKpiModal(key) {
     var varTxt;
     if (r.hideVariance) { varTxt = ""; }
     else if (r.isPct) { varTxt = (varAmt >= 0 ? "+" : "-") + fmtPPVal(Math.abs(varAmt)); }
+    else if (r.isRatio) { varTxt = (varAmt >= 0 ? "+" : "-") + fmtRatioVal(Math.abs(varAmt)); }
     else { varTxt = (varAmt >= 0 ? "+" : "") + fmtMoney(varAmt); }
     rows.push({
       cells: [
         { text: r.label, cls: "" },
-        { text: fmtRow(r.cur, r.isPct), cls: "" },
-        { text: fmtRow(r.prv, r.isPct), cls: "" },
+        { text: fmtRow(r.cur, r.isPct, r.isRatio), cls: "" },
+        { text: fmtRow(r.prv, r.isPct, r.isRatio), cls: "" },
         { text: varTxt, cls: (r.hideVariance ? "" : (varAmt < 0 ? "neg" : "pos")) }
       ],
       rowClass: r.bold ? "row-total" : ""
@@ -1254,7 +1256,7 @@ function loadKPI() {
       rows: [
         { label: "Total Current Assets", cur: totalCurAssets.cur, prv: totalCurAssets.prv },
         { label: "Total Current Liabilities", cur: totalCurLiab.cur, prv: totalCurLiab.prv },
-        { label: "Current Ratio", cur: currentRatioCur, prv: currentRatioPrv, bold: true }
+        { label: "Current Ratio", cur: currentRatioCur, prv: currentRatioPrv, bold: true, isRatio: true, hideVariance: true }
       ]
     };
     window.kpiDetailData.quickratio = {
@@ -1264,7 +1266,7 @@ function loadKPI() {
         { label: "Cash & Equivalents", cur: cash.cur, prv: cash.prv },
         { label: "Accounts Receivable", cur: ar.cur, prv: ar.prv },
         { label: "Total Current Liabilities", cur: totalCurLiab.cur, prv: totalCurLiab.prv },
-        { label: "Quick Ratio", cur: quickRatioCur, prv: quickRatioPrv, bold: true }
+        { label: "Quick Ratio", cur: quickRatioCur, prv: quickRatioPrv, bold: true, isRatio: true, hideVariance: true }
       ]
     };
     window.kpiDetailData.cashratio = {
@@ -1273,7 +1275,7 @@ function loadKPI() {
       rows: [
         { label: "Cash & Equivalents", cur: cash.cur, prv: cash.prv },
         { label: "Total Current Liabilities", cur: totalCurLiab.cur, prv: totalCurLiab.prv },
-        { label: "Cash Ratio", cur: cashRatioCur, prv: cashRatioPrv, bold: true }
+        { label: "Cash Ratio", cur: cashRatioCur, prv: cashRatioPrv, bold: true, isRatio: true, hideVariance: true }
       ]
     };
     window.kpiDetailData.dso = {
@@ -1282,7 +1284,7 @@ function loadKPI() {
       rows: [
         { label: "Accounts Receivable", cur: ar.cur, prv: ar.prv },
         { label: "Net Revenue", cur: nr.cur, prv: nr.prv },
-        { label: "DSO (days)", cur: dsoCur, prv: dsoPrv, bold: true }
+        { label: "DSO (days)", cur: dsoCur, prv: dsoPrv, bold: true, isRatio: true, hideVariance: true }
       ]
     };
     window.kpiDetailData.dpo = {
@@ -1291,16 +1293,16 @@ function loadKPI() {
       rows: [
         { label: "Accounts Payable", cur: ap.cur, prv: ap.prv },
         { label: "Cost of Goods Sold", cur: cogs.cur, prv: cogs.prv },
-        { label: "DPO (days)", cur: dpoCur, prv: dpoPrv, bold: true }
+        { label: "DPO (days)", cur: dpoCur, prv: dpoPrv, bold: true, isRatio: true, hideVariance: true }
       ]
     };
     window.kpiDetailData.ccc = {
       title: "Cash Conversion Cycle",
       sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
       rows: [
-        { label: "DSO (days)", cur: dsoCur, prv: dsoPrv },
-        { label: "DPO (days)", cur: dpoCur, prv: dpoPrv },
-        { label: "Cash Conv. Cycle", cur: cccCur, prv: cccPrv, bold: true }
+        { label: "DSO (days)", cur: dsoCur, prv: dsoPrv, isRatio: true },
+        { label: "DPO (days)", cur: dpoCur, prv: dpoPrv, isRatio: true },
+        { label: "Cash Conv. Cycle", cur: cccCur, prv: cccPrv, bold: true, isRatio: true, hideVariance: true }
       ]
     };
     window.kpiDetailData.debttoequity = {
@@ -1309,7 +1311,7 @@ function loadKPI() {
       rows: [
         { label: "Total Liabilities", cur: totalLiab.cur, prv: totalLiab.prv },
         { label: "Total Equity", cur: totalEquity.cur, prv: totalEquity.prv },
-        { label: "Debt-to-Equity", cur: deCur, prv: dePrv, bold: true }
+        { label: "Debt-to-Equity", cur: deCur, prv: dePrv, bold: true, isRatio: true, hideVariance: true }
       ]
     };
     window.kpiDetailData.debttoebitda = {
@@ -1318,7 +1320,7 @@ function loadKPI() {
       rows: [
         { label: "Total Liabilities", cur: totalLiab.cur, prv: totalLiab.prv },
         { label: "EBITDA", cur: eb.cur, prv: eb.prv },
-        { label: "Debt-to-EBITDA", cur: debtEbitdaCur, prv: debtEbitdaPrv, bold: true }
+        { label: "Debt-to-EBITDA", cur: debtEbitdaCur, prv: debtEbitdaPrv, bold: true, isRatio: true, hideVariance: true }
       ]
     };
     window.kpiDetailData.intcov = {
@@ -1327,7 +1329,7 @@ function loadKPI() {
       rows: [
         { label: "EBIT", cur: ebit.cur, prv: ebit.prv },
         { label: "Other Expense", cur: Math.abs(otherExpense.cur) || 1, prv: Math.abs(otherExpense.prv) || 1 },
-        { label: "Interest Coverage", cur: intCovCur, prv: intCovPrv, bold: true }
+        { label: "Interest Coverage", cur: intCovCur, prv: intCovPrv, bold: true, isRatio: true, hideVariance: true }
       ]
     };
     window.kpiDetailData.revyoy = {
@@ -1358,7 +1360,7 @@ function loadKPI() {
       sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
       rows: [
         { label: "Total Current Assets", cur: totalCurAssets.cur, prv: totalCurAssets.prv },
-        { label: "Total Assets", cur: totalAssets.cur, prv: totalAssets.prv, bold: true }
+        { label: "Total Assets", cur: totalAssets.cur, prv: totalAssets.prv, bold: true, hideVariance: true }
       ]
     };
     window.kpiDetailData.totalequity = {
@@ -1367,16 +1369,17 @@ function loadKPI() {
       rows: [
         { label: "Total Assets", cur: totalAssets.cur, prv: totalAssets.prv },
         { label: "Total Liabilities", cur: totalLiab.cur, prv: totalLiab.prv },
-        { label: "Total Equity", cur: totalEquity.cur, prv: totalEquity.prv, bold: true }
+        { label: "Total Equity", cur: totalEquity.cur, prv: totalEquity.prv, bold: true, hideVariance: true }
       ]
     };
     window.kpiDetailData.cashequiv = {
       title: "Cash & Equivalents",
       sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
       rows: [
-        { label: "Cash & Equivalents", cur: cash.cur, prv: cash.prv, bold: true }
+        { label: "Cash & Equivalents", cur: cash.cur, prv: cash.prv, bold: true, hideVariance: true }
       ]
     };
+
 
     var html = "";
     html += "<div class=\"card\"><div class=\"card-title\">Profitability Ratios</div><div class=\"kpi-grid\">";
