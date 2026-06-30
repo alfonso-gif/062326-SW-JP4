@@ -1203,39 +1203,213 @@ function loadKPI() {
         { label: "Gross Margin %", cur: grossMarginCur, prv: grossMarginPrv, isPct: true, bold: true, hideVariance: true }
       ]
     };
+    window.kpiDetailData.ebitdamargin = {
+      title: "EBITDA Margin %",
+      sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
+      rows: [
+        { label: "Net Revenue", cur: nr.cur, prv: nr.prv },
+        { label: "EBITDA", cur: eb.cur, prv: eb.prv, bold: true },
+        { label: "EBITDA Margin %", cur: ebitdaMarginCur, prv: ebitdaMarginPrv, isPct: true, bold: true, hideVariance: true }
+      ]
+    };
+    window.kpiDetailData.netmargin = {
+      title: "Net Profit Margin",
+      sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
+      rows: [
+        { label: "Net Revenue", cur: nr.cur, prv: nr.prv },
+        { label: "Net Income", cur: ni.cur, prv: ni.prv, bold: true },
+        { label: "Net Profit Margin %", cur: netMarginCur, prv: netMarginPrv, isPct: true, bold: true, hideVariance: true }
+      ]
+    };
+    window.kpiDetailData.opexratio = {
+      title: "OpEx Ratio",
+      sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
+      rows: [
+        { label: "Net Revenue", cur: nr.cur, prv: nr.prv },
+        { label: "Total Operating Expenses", cur: opex.cur, prv: opex.prv, bold: true },
+        { label: "OpEx Ratio", cur: opexRatioCur, prv: opexRatioPrv, isPct: true, bold: true, hideVariance: true }
+      ]
+    };
+    window.kpiDetailData.roa = {
+      title: "ROA",
+      sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
+      rows: [
+        { label: "Net Income", cur: ni.cur, prv: ni.prv },
+        { label: "Total Assets", cur: totalAssets.cur, prv: totalAssets.prv },
+        { label: "ROA", cur: roaCur, prv: roaPrv, isPct: true, bold: true, hideVariance: true }
+      ]
+    };
+    window.kpiDetailData.roe = {
+      title: "ROE",
+      sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
+      rows: [
+        { label: "Net Income", cur: ni.cur, prv: ni.prv },
+        { label: "Total Equity", cur: totalEquity.cur, prv: totalEquity.prv },
+        { label: "ROE", cur: roeCur, prv: roePrv, isPct: true, bold: true, hideVariance: true }
+      ]
+    };
+    window.kpiDetailData.currentratio = {
+      title: "Current Ratio",
+      sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
+      rows: [
+        { label: "Total Current Assets", cur: totalCurAssets.cur, prv: totalCurAssets.prv },
+        { label: "Total Current Liabilities", cur: totalCurLiab.cur, prv: totalCurLiab.prv },
+        { label: "Current Ratio", cur: currentRatioCur, prv: currentRatioPrv, bold: true }
+      ]
+    };
+    window.kpiDetailData.quickratio = {
+      title: "Quick Ratio",
+      sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
+      rows: [
+        { label: "Cash & Equivalents", cur: cash.cur, prv: cash.prv },
+        { label: "Accounts Receivable", cur: ar.cur, prv: ar.prv },
+        { label: "Total Current Liabilities", cur: totalCurLiab.cur, prv: totalCurLiab.prv },
+        { label: "Quick Ratio", cur: quickRatioCur, prv: quickRatioPrv, bold: true }
+      ]
+    };
+    window.kpiDetailData.cashratio = {
+      title: "Cash Ratio",
+      sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
+      rows: [
+        { label: "Cash & Equivalents", cur: cash.cur, prv: cash.prv },
+        { label: "Total Current Liabilities", cur: totalCurLiab.cur, prv: totalCurLiab.prv },
+        { label: "Cash Ratio", cur: cashRatioCur, prv: cashRatioPrv, bold: true }
+      ]
+    };
+    window.kpiDetailData.dso = {
+      title: "DSO (Days Sales Outstanding)",
+      sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
+      rows: [
+        { label: "Accounts Receivable", cur: ar.cur, prv: ar.prv },
+        { label: "Net Revenue", cur: nr.cur, prv: nr.prv },
+        { label: "DSO (days)", cur: dsoCur, prv: dsoPrv, bold: true }
+      ]
+    };
+    window.kpiDetailData.dpo = {
+      title: "DPO (Days Payable Outstanding)",
+      sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
+      rows: [
+        { label: "Accounts Payable", cur: ap.cur, prv: ap.prv },
+        { label: "Cost of Goods Sold", cur: cogs.cur, prv: cogs.prv },
+        { label: "DPO (days)", cur: dpoCur, prv: dpoPrv, bold: true }
+      ]
+    };
+    window.kpiDetailData.ccc = {
+      title: "Cash Conversion Cycle",
+      sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
+      rows: [
+        { label: "DSO (days)", cur: dsoCur, prv: dsoPrv },
+        { label: "DPO (days)", cur: dpoCur, prv: dpoPrv },
+        { label: "Cash Conv. Cycle", cur: cccCur, prv: cccPrv, bold: true }
+      ]
+    };
+    window.kpiDetailData.debttoequity = {
+      title: "Debt-to-Equity",
+      sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
+      rows: [
+        { label: "Total Liabilities", cur: totalLiab.cur, prv: totalLiab.prv },
+        { label: "Total Equity", cur: totalEquity.cur, prv: totalEquity.prv },
+        { label: "Debt-to-Equity", cur: deCur, prv: dePrv, bold: true }
+      ]
+    };
+    window.kpiDetailData.debttoebitda = {
+      title: "Debt-to-EBITDA",
+      sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
+      rows: [
+        { label: "Total Liabilities", cur: totalLiab.cur, prv: totalLiab.prv },
+        { label: "EBITDA", cur: eb.cur, prv: eb.prv },
+        { label: "Debt-to-EBITDA", cur: debtEbitdaCur, prv: debtEbitdaPrv, bold: true }
+      ]
+    };
+    window.kpiDetailData.intcov = {
+      title: "Interest Coverage",
+      sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
+      rows: [
+        { label: "EBIT", cur: ebit.cur, prv: ebit.prv },
+        { label: "Other Expense", cur: Math.abs(otherExpense.cur) || 1, prv: Math.abs(otherExpense.prv) || 1 },
+        { label: "Interest Coverage", cur: intCovCur, prv: intCovPrv, bold: true }
+      ]
+    };
+    window.kpiDetailData.revyoy = {
+      title: "Revenue Growth YoY",
+      sub: "YTD " + window.periodLabels.cur + " vs YTD Prior Year",
+      rows: [
+        { label: "Net Revenue YTD (Current)", cur: nr.ytdCur, prv: nr.ytdPrv },
+        { label: "Revenue Growth YoY", cur: revYoY, prv: 0, isPct: true, bold: true, hideVariance: true }
+      ]
+    };
+    window.kpiDetailData.revmom = {
+      title: "Revenue Growth MoM",
+      sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
+      rows: [
+        { label: "Net Revenue", cur: nr.cur, prv: nr.prv },
+        { label: "Revenue Growth MoM", cur: revMoM, prv: 0, isPct: true, bold: true, hideVariance: true }
+      ]
+    };
+    window.kpiDetailData.netcashops = {
+      title: "Net Cash from Ops",
+      sub: window.periodLabels.cur,
+      rows: [
+        { label: "Net Cash from Ops", cur: netCashOps, prv: 0, bold: true, hideVariance: true }
+      ]
+    };
+    window.kpiDetailData.totalassets = {
+      title: "Total Assets",
+      sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
+      rows: [
+        { label: "Total Current Assets", cur: totalCurAssets.cur, prv: totalCurAssets.prv },
+        { label: "Total Assets", cur: totalAssets.cur, prv: totalAssets.prv, bold: true }
+      ]
+    };
+    window.kpiDetailData.totalequity = {
+      title: "Total Equity",
+      sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
+      rows: [
+        { label: "Total Assets", cur: totalAssets.cur, prv: totalAssets.prv },
+        { label: "Total Liabilities", cur: totalLiab.cur, prv: totalLiab.prv },
+        { label: "Total Equity", cur: totalEquity.cur, prv: totalEquity.prv, bold: true }
+      ]
+    };
+    window.kpiDetailData.cashequiv = {
+      title: "Cash & Equivalents",
+      sub: window.periodLabels.cur + " vs " + window.periodLabels.prior,
+      rows: [
+        { label: "Cash & Equivalents", cur: cash.cur, prv: cash.prv, bold: true }
+      ]
+    };
 
     var html = "";
     html += "<div class=\"card\"><div class=\"card-title\">Profitability Ratios</div><div class=\"kpi-grid\">";
     html += card("Gross Margin %", grossMarginCur, grossMarginPrv, true, false, undefined, "grossmargin");
-    html += card("EBITDA Margin %", ebitdaMarginCur, ebitdaMarginPrv, true);
-    html += card("Net Profit Margin", netMarginCur, netMarginPrv, true);
-    html += card("OpEx Ratio", opexRatioCur, opexRatioPrv, true);
-    html += card("ROA", roaCur, roaPrv, true);
-    html += card("ROE", roeCur, roePrv, true);
+    html += card("EBITDA Margin %", ebitdaMarginCur, ebitdaMarginPrv, true, false, undefined, "ebitdamargin");
+    html += card("Net Profit Margin", netMarginCur, netMarginPrv, true, false, undefined, "netmargin");
+    html += card("OpEx Ratio", opexRatioCur, opexRatioPrv, true, false, undefined, "opexratio");
+    html += card("ROA", roaCur, roaPrv, true, false, undefined, "roa");
+    html += card("ROE", roeCur, roePrv, true, false, undefined, "roe");
     html += "</div></div>";
 
     html += "<div class=\"card\"><div class=\"card-title\">Liquidity Ratios</div><div class=\"kpi-grid\">";
-    html += card("Current Ratio", currentRatioCur, currentRatioPrv, false, false);
-    html += card("Quick Ratio", quickRatioCur, quickRatioPrv, false, false);
-    html += card("Cash Ratio", cashRatioCur, cashRatioPrv, false, false);
-    html += card("DSO (days)", dsoCur, dsoPrv, false, false, 0);
-    html += card("DPO (days)", dpoCur, dpoPrv, false, false, 0);
-    html += card("Cash Conv. Cycle", cccCur, cccPrv, false, false, 0);
+    html += card("Current Ratio", currentRatioCur, currentRatioPrv, false, false, undefined, "currentratio");
+    html += card("Quick Ratio", quickRatioCur, quickRatioPrv, false, false, undefined, "quickratio");
+    html += card("Cash Ratio", cashRatioCur, cashRatioPrv, false, false, undefined, "cashratio");
+    html += card("DSO (days)", dsoCur, dsoPrv, false, false, 0, "dso");
+    html += card("DPO (days)", dpoCur, dpoPrv, false, false, 0, "dpo");
+    html += card("Cash Conv. Cycle", cccCur, cccPrv, false, false, 0, "ccc");
     html += "</div></div>";
 
     html += "<div class=\"card\"><div class=\"card-title\">Leverage Ratios</div><div class=\"kpi-grid\">";
-    html += card("Debt-to-Equity", deCur, dePrv, false, false);
-    html += card("Debt-to-EBITDA", debtEbitdaCur, debtEbitdaPrv, false, false);
-    html += card("Interest Coverage", intCovCur, intCovPrv, false, false);
+    html += card("Debt-to-Equity", deCur, dePrv, false, false, undefined, "debttoequity");
+    html += card("Debt-to-EBITDA", debtEbitdaCur, debtEbitdaPrv, false, false, undefined, "debttoebitda");
+    html += card("Interest Coverage", intCovCur, intCovPrv, false, false, undefined, "intcov");
     html += "</div></div>";
 
     html += "<div class=\"card\"><div class=\"card-title\">Efficiency / Operating Metrics</div><div class=\"kpi-grid\">";
-    html += card("Revenue Growth YoY", revYoY, 0, true);
-    html += card("Revenue Growth MoM", revMoM, 0, true);
-    html += card("Net Cash from Ops", netCashOps, 0, false, true);
-    html += card("Total Assets", totalAssets.cur, totalAssets.prv, false, true);
-    html += card("Total Equity", totalEquity.cur, totalEquity.prv, false, true);
-    html += card("Cash & Equivalents", cash.cur, cash.prv, false, true);
+    html += card("Revenue Growth YoY", revYoY, 0, true, false, undefined, "revyoy");
+    html += card("Revenue Growth MoM", revMoM, 0, true, false, undefined, "revmom");
+    html += card("Net Cash from Ops", netCashOps, 0, false, true, undefined, "netcashops");
+    html += card("Total Assets", totalAssets.cur, totalAssets.prv, false, true, undefined, "totalassets");
+    html += card("Total Equity", totalEquity.cur, totalEquity.prv, false, true, undefined, "totalequity");
+    html += card("Cash & Equivalents", cash.cur, cash.prv, false, true, undefined, "cashequiv");
     html += "</div></div>";
 
     document.getElementById("kpi-sections").innerHTML = html;
