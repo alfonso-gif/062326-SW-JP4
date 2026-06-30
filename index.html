@@ -1139,7 +1139,8 @@ function loadKPI() {
     var ebit = plGet(pl, "EBIT");
     var ni = plGet(pl, "NET INCOME");
     var opex = plGet(pl, "TOTAL OPERATING EXPENSES");
-    var cogs = plGet(pl, "Cost of Goods Sold");
+    var cogsLookup = plGet(pl, "Cost of Goods Sold");
+    var cogs = (cogsLookup.cur !== 0 || cogsLookup.prv !== 0) ? cogsLookup : { cur: nr.cur - gp.cur, prv: nr.prv - gp.prv };
 
     var cash = bsGet(bsRows, "Cash & Equivalents");
     var ar = bsGet(bsRows, "Accounts Receivable");
