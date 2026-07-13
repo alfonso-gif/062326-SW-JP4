@@ -300,7 +300,7 @@
 window.SHEET_ID = "1nlDU2Rl6at23As7jZOQEvvRETpbsUOb-3C8v8ylGrxU";
 
 // Paste the Web App URL from your deployed Apps Script here (see period-updater.gs)
-window.PERIOD_UPDATE_URL = "https://script.google.com/a/macros/stemwave.com/s/AKfycbyiWRLWVEXQp_v4qK3Hy5epJ7lwjG6fJhqV4qTBJtesXfNGyaJQxCxv6kWnSQeRPruxwg/exec";
+window.PERIOD_UPDATE_URL = "https://script.google.com/macros/s/AKfycbzJ2JGOKEQqlcce0aDTY_4yS26EIJaqZQwA4LYcw5IH8lbx96PoC9fXliZZtvkDfZu1iw/exec";
 window.charts = {};
 window.txnCache = null;
 Chart.defaults.color = "#64748b";
@@ -528,13 +528,31 @@ function changePeriod(newPeriod) {
   sel.disabled = true;
   document.getElementById("period-label").textContent = "Updating to " + newPeriod + "...";
 
-  fetch(window.PERIOD_UPDATE_URL + "?period=" + encodeURIComponent(newPeriod), { mode: "no-cors" })
-    .catch(function () { })
-    .then(function () {
-      setTimeout(function () {
-        window.txnCache = null;
-        loadAll();
-      }, 2500);
+  fetch(window.PERIOD_UPDATE_URL + "?period=" + encodeURIComponent(newPeriod))
+    .then(function (resp) {
+      return resp.text().then(function (bodyText) {
+        var parsed = null;
+        try { parsed = JSON.parse(bodyText); } catch (e) { }
+        if (!resp.ok) {
+          throw new Error("HTTP " + resp.status + " from Apps Script. This usually means the deployment's access setting isn't \"Anyone\" (it may be restricted to your Workspace domain), or the URL/permissions changed.");
+        }
+        if (!parsed) {
+          throw new Error("Apps Script didn't return JSON \u2014 got: " + bodyText.slice(0, 200) + ". This often means the request was redirected to a Google sign-in page instead of reaching the script (a domain-restricted deployment).");
+        }
+        if (parsed.status !== "ok") {
+          throw new Error(parsed.message || "Apps Script reported an error.");
+        }
+        setTimeout(function () {
+          window.txnCache = null;
+          loadAll();
+        }, 2500);
+      });
+    })
+    .catch(function (err) {
+      sel.disabled = false;
+      document.getElementById("period-label").textContent = "Update failed";
+      alert("Could not switch period: " + err.message);
+      loadPeriodOptions();
     });
 }
 
