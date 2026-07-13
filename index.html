@@ -140,6 +140,9 @@
     </div>
   </div>
   <div class="header-right">
+    <select id="period-select" onchange="changePeriod(this.value)" style="font-size:12px;padding:6px 10px;border-radius:6px;border:1px solid #e2e8f0;color:#334155;background:#fff;" disabled>
+      <option>Loading periods...</option>
+    </select>
     <div id="period-label" class="period-badge">Loading period...</div>
     <button class="refresh-btn" onclick="loadAll()">Refresh</button>
   </div>
@@ -295,6 +298,9 @@
 <script type="text/javascript">
 
 window.SHEET_ID = "1wRro4QgZEUn_RPLMas1S_C5gdz8WJDM0No8n8KgDjLE";
+
+// Paste the Web App URL from your deployed Apps Script here (see period-updater.gs)
+window.PERIOD_UPDATE_URL = "https://script.google.com/macros/s/AKfycbyf9_VkLy2HbhtWpmeROFaTmhJt9LubaR9ydKUwBN6CoXGxHmuh_saNJTMLLU6CW9jnyw/exec";
 window.charts = {};
 window.txnCache = null;
 Chart.defaults.color = "#64748b";
@@ -477,6 +483,59 @@ function loadPeriod() {
   }, function () {
     document.getElementById("period-label").textContent = "Current period";
   });
+}
+
+function loadPeriodOptions() {
+  var sel = document.getElementById("period-select");
+  getTxnCache().then(function (rows) {
+    var headerRow = rows[0] || [];
+    var periodCol = 1;
+    for (var hc = 0; hc < headerRow.length; hc++) {
+      if (String(headerRow[hc] || "").replace(/^\s+|\s+$/g, "").toLowerCase() === "period") { periodCol = hc; }
+    }
+    var seen = {};
+    var periods = [];
+    for (var i = 1; i < rows.length; i++) {
+      var p = String((rows[i] || [])[periodCol] || "").replace(/^\s+|\s+$/g, "");
+      if (p && !seen[p]) { seen[p] = true; periods.push(p); }
+    }
+    periods.sort(function (a, b) {
+      var da = new Date(a + " 1");
+      var db = new Date(b + " 1");
+      if (isNaN(da.getTime()) || isNaN(db.getTime())) { return a < b ? -1 : 1; }
+      return da.getTime() - db.getTime();
+    });
+
+    var opts = "";
+    for (var j = 0; j < periods.length; j++) {
+      var selAttr = (periods[j] === window.periodLabels.cur) ? " selected" : "";
+      opts += "<option value=\"" + periods[j] + "\"" + selAttr + ">" + periods[j] + "</option>";
+    }
+    sel.innerHTML = opts || "<option>No periods found</option>";
+    sel.disabled = periods.length === 0;
+  }, function () {
+    sel.innerHTML = "<option>Could not load periods</option>";
+  });
+}
+
+function changePeriod(newPeriod) {
+  if (!window.PERIOD_UPDATE_URL) {
+    alert("Period switching isn't configured yet. See period-updater.gs for setup instructions, then set window.PERIOD_UPDATE_URL in the dashboard code.");
+    loadPeriodOptions();
+    return;
+  }
+  var sel = document.getElementById("period-select");
+  sel.disabled = true;
+  document.getElementById("period-label").textContent = "Updating to " + newPeriod + "...";
+
+  fetch(window.PERIOD_UPDATE_URL + "?period=" + encodeURIComponent(newPeriod), { mode: "no-cors" })
+    .catch(function () { })
+    .then(function () {
+      setTimeout(function () {
+        window.txnCache = null;
+        loadAll();
+      }, 2500);
+    });
 }
 
 var EXPENSE_LINES = {
@@ -928,6 +987,7 @@ function renderTop3Drivers(allFlags) {
   }
 
   container.innerHTML = "<div style=\"color:#64748b;font-size:12px;padding:8px 0;\">Analyzing underlying transactions...</div>";
+  window.top3TxnCache = {};
 
   getTxnCache().then(function (rows) {
     var headerRow = rows[0] || [];
@@ -959,11 +1019,12 @@ function renderTop3Drivers(allFlags) {
         if (periodTxt.toLowerCase() !== targetPeriod.toLowerCase()) { continue; }
         var amt = numVal(r[colIdx.amount]);
         if (amt === 0) { continue; }
-        matches.push({ name: r[colIdx.name] || "", amount: amt, docnum: r[colIdx.docnum] || "", date: r[colIdx.date] || "" });
+        matches.push({ name: r[colIdx.name] || "", amount: amt, docnum: r[colIdx.docnum] || "", date: r[colIdx.date] || "", type: r[colIdx.type] || "", memo: r[colIdx.memo] || "" });
       }
 
       matches.sort(function (a, b) { return Math.abs(b.amount) - Math.abs(a.amount); });
       var top2 = matches.slice(0, 2);
+      window.top3TxnCache[v] = top2;
 
       var cls = favClass(variance.varD, variance.label);
       var sev = Math.abs(variance.varP) >= 40 ? "red" : (Math.abs(variance.varP) >= 15 ? "amber" : "green");
@@ -981,7 +1042,7 @@ function renderTop3Drivers(allFlags) {
         html += "<div style=\"font-size:11px;color:#64748b;\">Largest contributing transaction" + (top2.length > 1 ? "s" : "") + ":</div>";
         for (var t = 0; t < top2.length; t++) {
           var tx = top2[t];
-          html += "<div style=\"font-size:12px;color:#334155;margin-top:3px;\">&bull; " + fmtMoney(tx.amount) + " \u2014 " + tx.name + (tx.docnum ? " (" + tx.docnum + ")" : "") + (tx.date ? ", " + tx.date : "") + "</div>";
+          html += "<div onclick=\"openSingleTxnModal(" + v + "," + t + ")\" style=\"font-size:12px;color:#334155;margin-top:3px;cursor:pointer;\" onmouseover=\"this.style.color='#0369a1';this.style.textDecoration='underline';\" onmouseout=\"this.style.color='#334155';this.style.textDecoration='none';\" title=\"Click for transaction detail\">&bull; " + fmtMoney(tx.amount) + " \u2014 " + tx.name + (tx.docnum ? " (" + tx.docnum + ")" : "") + (tx.date ? ", " + tx.date : "") + "</div>";
         }
       }
       html += "</div>";
@@ -991,6 +1052,30 @@ function renderTop3Drivers(allFlags) {
   }, function (e) {
     container.innerHTML = "<div style=\"color:#dc2626;font-size:12px;\">Could not load transaction detail: " + e.message + "</div>";
   });
+}
+
+function openSingleTxnModal(v, t) {
+  var tx = window.top3TxnCache && window.top3TxnCache[v] ? window.top3TxnCache[v][t] : null;
+  if (!tx) { return; }
+  document.getElementById("txn-modal-title").textContent = tx.name || "Transaction Detail";
+  document.getElementById("txn-modal-sub").textContent = String(tx.date) + (tx.type ? " \u00B7 " + tx.type : "");
+  document.getElementById("txn-modal").className = "modal-overlay show";
+
+  var tableRows = [{
+    cells: [
+      { text: String(tx.date) },
+      { text: String(tx.type) },
+      { text: String(tx.docnum) },
+      { text: String(tx.name) },
+      { text: String(tx.memo) },
+      { text: fmtMoney(tx.amount), cls: tx.amount < 0 ? "neg" : "" }
+    ],
+    rowClass: ""
+  }];
+
+  makeTable(document.getElementById("txn-modal-table"), tableRows, ["Date", "Type", "Doc #", "Name", "Memo", "Amount"]);
+  document.getElementById("txn-modal-count").textContent = "1 transaction";
+  document.getElementById("txn-modal-sum").textContent = "Total: " + fmtMoney(tx.amount);
 }
 
 function openTxnModal(accountName) {
@@ -1986,6 +2071,7 @@ function loadAll() {
     loadBS();
     loadCF();
     loadForecast();
+    loadPeriodOptions();
   }, function () {
     return null;
   });
