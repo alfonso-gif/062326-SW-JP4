@@ -1731,6 +1731,8 @@ function loadPL() {
         var cellText = "";
         if (rawStr === "") {
           cellText = String.fromCharCode(8212);
+        } else if (c === 7) {
+          cellText = (numericVal >= 0 ? "" : "") + numericVal.toFixed(1) + "%";
         } else if (displayLabel.indexOf("%") !== -1) {
           cellText = rawStr;
         } else {
