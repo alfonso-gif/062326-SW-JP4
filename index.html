@@ -1658,6 +1658,19 @@ function loadPL() {
     var periodCur = headers[2] || window.periodLabels.cur || "Current";
     var periodPrv = headers[3] || window.periodLabels.prior || "Prior";
     var colHeaders = ["Line Item", periodCur, periodPrv, "Current YTD", "Prior YTD", "Variance $", "Variance %"];
+
+    var varPctColIdx = -1;
+    for (var hIdx = 0; hIdx < headers.length; hIdx++) {
+      var hTxt = String(headers[hIdx] || "").toLowerCase();
+      if (hTxt.indexOf("variance") !== -1 && hTxt.indexOf("%") !== -1) { varPctColIdx = hIdx; }
+    }
+    if (varPctColIdx === -1) {
+      for (var hIdx2 = 0; hIdx2 < headers.length; hIdx2++) {
+        if (String(headers[hIdx2] || "").indexOf("%") !== -1) { varPctColIdx = hIdx2; }
+      }
+    }
+    if (varPctColIdx === -1) { varPctColIdx = 7; }
+
     var dataRows = [];
 
     var currentGroupId = -1;
@@ -1731,8 +1744,8 @@ function loadPL() {
         var cellText = "";
         if (rawStr === "") {
           cellText = String.fromCharCode(8212);
-        } else if (c === 7) {
-          cellText = (numericVal >= 0 ? "" : "") + numericVal.toFixed(1) + "%";
+        } else if (c === varPctColIdx) {
+          cellText = numericVal.toFixed(1) + "%";
         } else if (displayLabel.indexOf("%") !== -1) {
           cellText = rawStr;
         } else {
