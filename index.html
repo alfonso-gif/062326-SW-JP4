@@ -2081,6 +2081,7 @@ function loadForecast() {
       var dataStartIdx = headerRowIdx + 3;
       var headerRowArr = rows[headerRowIdx] || [];
       var numCols = headerRowArr.length;
+      var totalDataCols = numCols - labelColIdx - 1;
 
       var colLabels = [];
       var colIndexInData = 0;
@@ -2095,11 +2096,10 @@ function loadForecast() {
           tagClean = (colIndexInData < 2) ? "Actual" : "Forecast";
         }
 
-        var weekLabelRaw = headerRowArr[c];
         var weekLabelClean = "";
-        if (weekLabelRaw !== undefined && weekLabelRaw !== null) {
-          var weekCandidate = String(weekLabelRaw).replace(/^\s+|\s+$/g, "");
-          if (/^week\s*\d+$/i.test(weekCandidate)) { weekLabelClean = weekCandidate; }
+        var weekIndex = colIndexInData - (totalDataCols - 13) + 1;
+        if (weekIndex >= 1 && weekIndex <= 13) {
+          weekLabelClean = "Week " + weekIndex;
         }
 
         startTxt = weekLabelClean + "\n" + tagClean + "\n" + startTxt;
