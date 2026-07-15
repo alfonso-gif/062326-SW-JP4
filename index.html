@@ -1100,7 +1100,7 @@ function renderTop3Drivers(allFlags) {
 
   getTxnCache().then(function (rows) {
     var headerRow = rows[0] || [];
-    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctname: 12 };
+    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctname: 13 };
     for (var hc = 0; hc < headerRow.length; hc++) {
       var h = String(headerRow[hc] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
       if (h === "date") { colIdx.date = hc; }
@@ -1197,7 +1197,7 @@ function openTxnModal(accountName) {
 
   getTxnCache().then(function (rows) {
     var headerRow = rows[0] || [];
-    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctnum: 10, acctname: 12 };
+    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctnum: 10, acctname: 13 };
     for (var hc = 0; hc < headerRow.length; hc++) {
       var h = String(headerRow[hc] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
       if (h === "date") { colIdx.date = hc; }
@@ -1269,9 +1269,16 @@ function openTxnModal(accountName) {
     document.getElementById("txn-modal-sum").textContent = "Total: " + fmtMoney(total);
 
     if (matches.length === 0) {
+      var sampleVals = [];
+      var seenVals = {};
+      for (var si = 1; si < rows.length && sampleVals.length < 8; si++) {
+        var sv = String((rows[si] || [])[colIdx.acctname] || "").replace(/^\s+|\s+$/g, "");
+        if (sv && !seenVals[sv]) { seenVals[sv] = true; sampleVals.push(sv); }
+      }
       var diag = "Searched " + (rows.length - 1) + " total rows in Raw_GL. " +
         acctOnlyCount + " row(s) matched account \"" + accountName + "\" (any period). " +
-        periodOnlyCount + " row(s) matched period \"" + targetPeriod + "\" (any account).";
+        periodOnlyCount + " row(s) matched period \"" + targetPeriod + "\" (any account). " +
+        "Sample values actually found in column index " + colIdx.acctname + ": " + JSON.stringify(sampleVals);
       document.getElementById("txn-modal-table").innerHTML = "<tbody><tr><td style=\"text-align:center;color:#94a3b8;padding:24px;\">No transactions found for " + accountName + " in " + targetPeriod + ".<br><br><span style=\"font-size:11px;\">" + diag + "</span></td></tr></tbody>";
     }
   }, function (e) {
