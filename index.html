@@ -987,32 +987,9 @@ function generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx, kpiCtx, t
   });
 }
 
-function normalizePeriod(s) {
-  var str = String(s || "").replace(/^\s+|\s+$/g, "");
-  if (!str) { return ""; }
-  var yearMatch = str.match(/(20\d{2})/);
-  var year = yearMatch ? yearMatch[1] : "";
-  var monthAbbrs = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-  var monthFulls = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
-  var lower = str.toLowerCase();
-  var monthAbbr = "";
-  for (var i = 0; i < monthFulls.length; i++) {
-    if (lower.indexOf(monthFulls[i]) !== -1) { monthAbbr = monthAbbrs[i]; break; }
-  }
-  if (!monthAbbr) {
-    for (var j = 0; j < monthAbbrs.length; j++) {
-      if (lower.indexOf(monthAbbrs[j]) !== -1) { monthAbbr = monthAbbrs[j]; break; }
-    }
-  }
-  if (monthAbbr && year) {
-    return monthAbbr + " " + year;
-  }
-  return lower;
-}
-
 function getTxnCache() {
   if (window.txnCache) { return Promise.resolve(window.txnCache); }
-  return fetchRange("Raw_GL!A1:M20000").then(function (rows) {
+  return fetchRange("Transaction List!A1:L20000").then(function (rows) {
     window.txnCache = rows;
     return rows;
   });
@@ -1032,7 +1009,7 @@ function renderTop3Drivers(allFlags) {
 
   getTxnCache().then(function (rows) {
     var headerRow = rows[0] || [];
-    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctname: 12 };
+    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctname: 11 };
     for (var hc = 0; hc < headerRow.length; hc++) {
       var h = String(headerRow[hc] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
       if (h === "date") { colIdx.date = hc; }
@@ -1042,7 +1019,7 @@ function renderTop3Drivers(allFlags) {
       if (h === "name") { colIdx.name = hc; }
       if (h === "memo") { colIdx.memo = hc; }
       if (h === "amount") { colIdx.amount = hc; }
-      if (h.indexOf("account name") !== -1 || h.indexOf("subaccount") !== -1 || h.indexOf("sub account") !== -1 || h.indexOf("sub-account") !== -1) { colIdx.acctname = hc; }
+      if (h.indexOf("account name") !== -1) { colIdx.acctname = hc; }
     }
 
     var targetPeriod = window.periodLabels.cur;
@@ -1057,7 +1034,7 @@ function renderTop3Drivers(allFlags) {
         var acctName = String(r[colIdx.acctname] || "").replace(/^\s+|\s+$/g, "");
         if (acctName.toLowerCase() !== variance.label.toLowerCase()) { continue; }
         var periodTxt = String(r[colIdx.period] || "").replace(/^\s+|\s+$/g, "");
-        if (normalizePeriod(periodTxt) !== normalizePeriod(targetPeriod)) { continue; }
+        if (periodTxt.toLowerCase() !== targetPeriod.toLowerCase()) { continue; }
         var amt = numVal(r[colIdx.amount]);
         if (amt === 0) { continue; }
         matches.push({ name: r[colIdx.name] || "", amount: amt, docnum: r[colIdx.docnum] || "", date: r[colIdx.date] || "", type: r[colIdx.type] || "", memo: r[colIdx.memo] || "" });
@@ -1129,7 +1106,7 @@ function openTxnModal(accountName) {
 
   getTxnCache().then(function (rows) {
     var headerRow = rows[0] || [];
-    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctnum: 10, acctname: 12 };
+    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctnum: 10, acctname: 11 };
     for (var hc = 0; hc < headerRow.length; hc++) {
       var h = String(headerRow[hc] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
       if (h === "date") { colIdx.date = hc; }
@@ -1140,7 +1117,7 @@ function openTxnModal(accountName) {
       if (h === "account") { colIdx.account = hc; }
       if (h === "memo") { colIdx.memo = hc; }
       if (h === "amount") { colIdx.amount = hc; }
-      if (h.indexOf("account name") !== -1 || h.indexOf("subaccount") !== -1 || h.indexOf("sub account") !== -1 || h.indexOf("sub-account") !== -1) { colIdx.acctname = hc; }
+      if (h.indexOf("account name") !== -1) { colIdx.acctname = hc; }
     }
 
     var targetPeriod = window.periodLabels.cur;
@@ -1151,7 +1128,7 @@ function openTxnModal(accountName) {
       var acctName = String(r[colIdx.acctname] || "").replace(/^\s+|\s+$/g, "");
       if (acctName.toLowerCase() !== accountName.toLowerCase()) { continue; }
       var periodTxt = String(r[colIdx.period] || "").replace(/^\s+|\s+$/g, "");
-      if (normalizePeriod(periodTxt) !== normalizePeriod(targetPeriod)) { continue; }
+      if (periodTxt.toLowerCase() !== targetPeriod.toLowerCase()) { continue; }
       var amt = numVal(r[colIdx.amount]);
       if (amt === 0) { continue; }
       matches.push({
