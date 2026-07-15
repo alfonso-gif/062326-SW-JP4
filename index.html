@@ -989,7 +989,7 @@ function generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx, kpiCtx, t
 
 function getTxnCache() {
   if (window.txnCache) { return Promise.resolve(window.txnCache); }
-  return fetchRange("Transaction List!A1:L20000").then(function (rows) {
+  return fetchRange("Raw_GL!A1:L20000").then(function (rows) {
     window.txnCache = rows;
     return rows;
   });
@@ -1019,7 +1019,7 @@ function renderTop3Drivers(allFlags) {
       if (h === "name") { colIdx.name = hc; }
       if (h === "memo") { colIdx.memo = hc; }
       if (h === "amount") { colIdx.amount = hc; }
-      if (h.indexOf("account name") !== -1) { colIdx.acctname = hc; }
+      if (h.indexOf("account name") !== -1 || h === "subaccount") { colIdx.acctname = hc; }
     }
 
     var targetPeriod = window.periodLabels.cur;
@@ -1117,7 +1117,7 @@ function openTxnModal(accountName) {
       if (h === "account") { colIdx.account = hc; }
       if (h === "memo") { colIdx.memo = hc; }
       if (h === "amount") { colIdx.amount = hc; }
-      if (h.indexOf("account name") !== -1) { colIdx.acctname = hc; }
+      if (h.indexOf("account name") !== -1 || h === "subaccount") { colIdx.acctname = hc; }
     }
 
     var targetPeriod = window.periodLabels.cur;
