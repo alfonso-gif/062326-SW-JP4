@@ -125,6 +125,7 @@
   .modal-body th:nth-child(5), .modal-body td:nth-child(5) { min-width: 240px; white-space: normal; }
   #kpi-modal-table th, #kpi-modal-table td { min-width: 0; white-space: nowrap; }
   #kpi-modal-table th:not(:first-child), #kpi-modal-table td:not(:first-child) { width: 110px; }
+  #forecast-table th { white-space: pre-line; line-height: 1.5; }
   .modal-total { padding: 12px 20px; border-top: 1px solid #e2e8f0; font-size: 12px; font-weight: 700; display: flex; justify-content: space-between; background: #f8fafc; }
 
   @media (max-width: 640px) { .two-col, .three-col { grid-template-columns: 1fr; } .kpi-value { font-size: 17px; } .tab { padding: 8px 10px; font-size: 11px; } }
@@ -252,11 +253,16 @@
 <div id="section-forecast" class="section">
   <div id="forecast-loading" class="loading"><div class="spinner"></div>Loading forecast...</div>
   <div id="forecast-content" style="display:none;">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+      <select id="forecast-period-select" onchange="changeForecastPeriod(this.value)" style="font-size:12px;padding:6px 10px;border-radius:6px;border:1px solid #e2e8f0;color:#334155;background:#fff;" disabled>
+        <option>Loading weeks...</option>
+      </select>
+    </div>
+    <div class="card"><div class="card-title">Weekly Detail</div><div style="overflow-x:auto;"><table class="data-table" id="forecast-table"></table></div></div>
     <div class="card">
       <div class="card-title">Ending Cash Balance</div>
       <div class="chart-wrap-tall"><canvas id="endcash-chart"></canvas></div>
     </div>
-    <div class="card"><div class="card-title">Weekly Detail</div><div style="overflow-x:auto;"><table class="data-table" id="forecast-table"></table></div></div>
   </div>
 </div>
 
@@ -553,6 +559,71 @@ function changePeriod(newPeriod) {
       document.getElementById("period-label").textContent = "Update failed";
       alert("Could not switch period: " + err.message);
       loadPeriodOptions();
+    });
+}
+
+function loadForecastPeriodOptions() {
+  var sel = document.getElementById("forecast-period-select");
+  if (!sel) { return; }
+  fetchRange("PERIOD_CONTROL!R1:R50").then(function (rows) {
+    var opts = "";
+    var currentVal = null;
+    fetchRange("13WK_FORECAST!B4:B4").then(function (curRows) {
+      currentVal = curRows && curRows[0] ? curRows[0][0] : null;
+      for (var i = 0; i < rows.length; i++) {
+        var v = String((rows[i] || [])[0] || "").replace(/^\s+|\s+$/g, "");
+        if (!v) { continue; }
+        var selAttr = (currentVal && v === String(currentVal).replace(/^\s+|\s+$/g, "")) ? " selected" : "";
+        opts += "<option value=\"" + v + "\"" + selAttr + ">" + v + "</option>";
+      }
+      sel.innerHTML = opts || "<option>No weeks found</option>";
+      sel.disabled = opts === "";
+    }, function () {
+      for (var j = 0; j < rows.length; j++) {
+        var v2 = String((rows[j] || [])[0] || "").replace(/^\s+|\s+$/g, "");
+        if (!v2) { continue; }
+        opts += "<option value=\"" + v2 + "\">" + v2 + "</option>";
+      }
+      sel.innerHTML = opts || "<option>No weeks found</option>";
+      sel.disabled = opts === "";
+    });
+  }, function () {
+    sel.innerHTML = "<option>Could not load weeks</option>";
+  });
+}
+
+function changeForecastPeriod(newVal) {
+  if (!window.PERIOD_UPDATE_URL) {
+    alert("Period switching isn't configured yet. See period-updater.gs for setup instructions, then set window.PERIOD_UPDATE_URL in the dashboard code.");
+    loadForecastPeriodOptions();
+    return;
+  }
+  var sel = document.getElementById("forecast-period-select");
+  sel.disabled = true;
+
+  fetch(window.PERIOD_UPDATE_URL + "?period=" + encodeURIComponent(newVal) + "&sheet=" + encodeURIComponent("13WK_FORECAST") + "&cell=B4")
+    .then(function (resp) {
+      return resp.text().then(function (bodyText) {
+        var parsed = null;
+        try { parsed = JSON.parse(bodyText); } catch (e) { }
+        if (!resp.ok) {
+          throw new Error("HTTP " + resp.status + " from Apps Script.");
+        }
+        if (!parsed) {
+          throw new Error("Apps Script didn't return JSON \u2014 got: " + bodyText.slice(0, 200));
+        }
+        if (parsed.status !== "ok") {
+          throw new Error(parsed.message || "Apps Script reported an error. (Note: this requires the Apps Script to support the sheet/cell parameters \u2014 see period-updater-v3.gs)");
+        }
+        setTimeout(function () {
+          loadForecast();
+        }, 2500);
+      });
+    })
+    .catch(function (err) {
+      sel.disabled = false;
+      alert("Could not switch 13-week period: " + err.message);
+      loadForecastPeriodOptions();
     });
 }
 
@@ -1922,6 +1993,7 @@ function loadCF() {
 function loadForecast() {
   document.getElementById("forecast-loading").style.display = "flex";
   document.getElementById("forecast-content").style.display = "none";
+  loadForecastPeriodOptions();
   return fetchRange("13WK_FORECAST!A1:R45").then(function (rows) {
     try {
       if (!rows || rows.length < 17) {
@@ -2011,7 +2083,7 @@ function loadForecast() {
           tagClean = (colIndexInData < 2) ? "Actual" : "Forecast";
         }
 
-        startTxt = tagClean + " \u00B7 " + startTxt;
+        startTxt = tagClean + "\n" + startTxt;
         colLabels.push(startTxt);
         colIndexInData = colIndexInData + 1;
       }
@@ -2065,7 +2137,7 @@ function loadForecast() {
       var endCashLabels = [];
       var endCashData = [];
       for (var ec = labelColIdx + 1; ec < numCols; ec++) {
-        endCashLabels.push(colLabels[ec - labelColIdx - 1]);
+        endCashLabels.push(colLabels[ec - labelColIdx - 1].split("\n"));
         endCashData.push(endCashRow ? numVal(endCashRow[ec]) : 0);
       }
       window.charts.endcash = new Chart(document.getElementById("endcash-chart"), {
