@@ -125,6 +125,11 @@
   .modal-body th:nth-child(5), .modal-body td:nth-child(5) { min-width: 240px; white-space: normal; }
   #kpi-modal-table th, #kpi-modal-table td { min-width: 0; white-space: nowrap; }
   #kpi-modal-table th:not(:first-child), #kpi-modal-table td:not(:first-child) { width: 110px; }
+  #forecast-table th { white-space: pre-line; line-height: 1.5; }
+  #forecast-table { font-size: 10.5px; }
+  #forecast-table th { font-size: 9px; padding: 6px 6px; }
+  #forecast-table td { padding: 4px 6px; }
+  #forecast-table th:first-child, #forecast-table td:first-child { min-width: 150px; }
   .modal-total { padding: 12px 20px; border-top: 1px solid #e2e8f0; font-size: 12px; font-weight: 700; display: flex; justify-content: space-between; background: #f8fafc; }
 
   @media (max-width: 640px) { .two-col, .three-col { grid-template-columns: 1fr; } .kpi-value { font-size: 17px; } .tab { padding: 8px 10px; font-size: 11px; } }
@@ -252,11 +257,16 @@
 <div id="section-forecast" class="section">
   <div id="forecast-loading" class="loading"><div class="spinner"></div>Loading forecast...</div>
   <div id="forecast-content" style="display:none;">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+      <select id="forecast-period-select" onchange="changeForecastPeriod(this.value)" style="font-size:12px;padding:6px 10px;border-radius:6px;border:1px solid #e2e8f0;color:#334155;background:#fff;" disabled>
+        <option>Loading weeks...</option>
+      </select>
+    </div>
+    <div class="card"><div class="card-title">Weekly Detail</div><div style="overflow-x:auto;"><table class="data-table" id="forecast-table"></table></div></div>
     <div class="card">
       <div class="card-title">Ending Cash Balance</div>
       <div class="chart-wrap-tall"><canvas id="endcash-chart"></canvas></div>
     </div>
-    <div class="card"><div class="card-title">Weekly Detail</div><div style="overflow-x:auto;"><table class="data-table" id="forecast-table"></table></div></div>
   </div>
 </div>
 
@@ -553,6 +563,64 @@ function changePeriod(newPeriod) {
       document.getElementById("period-label").textContent = "Update failed";
       alert("Could not switch period: " + err.message);
       loadPeriodOptions();
+    });
+}
+
+function loadForecastPeriodOptions() {
+  var sel = document.getElementById("forecast-period-select");
+  if (!sel) { return; }
+  fetchRange("13WK_FORECAST!B4:B4").then(function (curRows) {
+    var currentRaw = curRows && curRows[0] ? curRows[0][0] : null;
+    var baseDate = currentRaw ? new Date(currentRaw) : new Date();
+    if (isNaN(baseDate.getTime())) { baseDate = new Date(); }
+
+    var opts = "";
+    for (var i = -8; i <= 12; i++) {
+      var d = new Date(baseDate.getTime());
+      d.setDate(d.getDate() + i * 7);
+      var label = (d.getMonth() + 1) + "/" + d.getDate() + "/" + d.getFullYear();
+      var selAttr = (i === 0) ? " selected" : "";
+      opts += "<option value=\"" + label + "\"" + selAttr + ">" + label + (i === 0 ? " (current)" : "") + "</option>";
+    }
+    sel.innerHTML = opts;
+    sel.disabled = false;
+  }, function () {
+    sel.innerHTML = "<option>Could not load current week</option>";
+  });
+}
+
+function changeForecastPeriod(newVal) {
+  if (!window.PERIOD_UPDATE_URL) {
+    alert("Period switching isn't configured yet. See period-updater.gs for setup instructions, then set window.PERIOD_UPDATE_URL in the dashboard code.");
+    loadForecastPeriodOptions();
+    return;
+  }
+  var sel = document.getElementById("forecast-period-select");
+  sel.disabled = true;
+
+  fetch(window.PERIOD_UPDATE_URL + "?period=" + encodeURIComponent(newVal) + "&sheet=" + encodeURIComponent("13WK_FORECAST") + "&cell=B4")
+    .then(function (resp) {
+      return resp.text().then(function (bodyText) {
+        var parsed = null;
+        try { parsed = JSON.parse(bodyText); } catch (e) { }
+        if (!resp.ok) {
+          throw new Error("HTTP " + resp.status + " from Apps Script.");
+        }
+        if (!parsed) {
+          throw new Error("Apps Script didn't return JSON \u2014 got: " + bodyText.slice(0, 200));
+        }
+        if (parsed.status !== "ok") {
+          throw new Error(parsed.message || "Apps Script reported an error. (Note: this requires the Apps Script to support the sheet/cell parameters \u2014 see period-updater-v3.gs)");
+        }
+        setTimeout(function () {
+          loadForecast();
+        }, 2500);
+      });
+    })
+    .catch(function (err) {
+      sel.disabled = false;
+      alert("Could not switch 13-week period: " + err.message);
+      loadForecastPeriodOptions();
     });
 }
 
@@ -987,9 +1055,32 @@ function generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx, kpiCtx, t
   });
 }
 
+function normalizePeriod(s) {
+  var str = String(s || "").replace(/^\s+|\s+$/g, "");
+  if (!str) { return ""; }
+  var yearMatch = str.match(/(20\d{2})/);
+  var year = yearMatch ? yearMatch[1] : "";
+  var monthAbbrs = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  var monthFulls = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+  var lower = str.toLowerCase();
+  var monthAbbr = "";
+  for (var i = 0; i < monthFulls.length; i++) {
+    if (lower.indexOf(monthFulls[i]) !== -1) { monthAbbr = monthAbbrs[i]; break; }
+  }
+  if (!monthAbbr) {
+    for (var j = 0; j < monthAbbrs.length; j++) {
+      if (lower.indexOf(monthAbbrs[j]) !== -1) { monthAbbr = monthAbbrs[j]; break; }
+    }
+  }
+  if (monthAbbr && year) {
+    return monthAbbr + " " + year;
+  }
+  return lower;
+}
+
 function getTxnCache() {
   if (window.txnCache) { return Promise.resolve(window.txnCache); }
-  return fetchRange("Transaction List!A1:L20000").then(function (rows) {
+  return fetchRange("Raw_GL!A1:M20000").then(function (rows) {
     window.txnCache = rows;
     return rows;
   });
@@ -1009,7 +1100,7 @@ function renderTop3Drivers(allFlags) {
 
   getTxnCache().then(function (rows) {
     var headerRow = rows[0] || [];
-    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctname: 11 };
+    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctname: 12 };
     for (var hc = 0; hc < headerRow.length; hc++) {
       var h = String(headerRow[hc] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
       if (h === "date") { colIdx.date = hc; }
@@ -1019,7 +1110,7 @@ function renderTop3Drivers(allFlags) {
       if (h === "name") { colIdx.name = hc; }
       if (h === "memo") { colIdx.memo = hc; }
       if (h === "amount") { colIdx.amount = hc; }
-      if (h.indexOf("account name") !== -1) { colIdx.acctname = hc; }
+      if (h.indexOf("account name") !== -1 || h.indexOf("subaccount") !== -1 || h.indexOf("sub account") !== -1 || h.indexOf("sub-account") !== -1) { colIdx.acctname = hc; }
     }
 
     var targetPeriod = window.periodLabels.cur;
@@ -1034,7 +1125,7 @@ function renderTop3Drivers(allFlags) {
         var acctName = String(r[colIdx.acctname] || "").replace(/^\s+|\s+$/g, "");
         if (acctName.toLowerCase() !== variance.label.toLowerCase()) { continue; }
         var periodTxt = String(r[colIdx.period] || "").replace(/^\s+|\s+$/g, "");
-        if (periodTxt.toLowerCase() !== targetPeriod.toLowerCase()) { continue; }
+        if (normalizePeriod(periodTxt) !== normalizePeriod(targetPeriod)) { continue; }
         var amt = numVal(r[colIdx.amount]);
         if (amt === 0) { continue; }
         matches.push({ name: r[colIdx.name] || "", amount: amt, docnum: r[colIdx.docnum] || "", date: r[colIdx.date] || "", type: r[colIdx.type] || "", memo: r[colIdx.memo] || "" });
@@ -1106,7 +1197,7 @@ function openTxnModal(accountName) {
 
   getTxnCache().then(function (rows) {
     var headerRow = rows[0] || [];
-    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctnum: 10, acctname: 11 };
+    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctnum: 10, acctname: 12 };
     for (var hc = 0; hc < headerRow.length; hc++) {
       var h = String(headerRow[hc] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
       if (h === "date") { colIdx.date = hc; }
@@ -1117,18 +1208,23 @@ function openTxnModal(accountName) {
       if (h === "account") { colIdx.account = hc; }
       if (h === "memo") { colIdx.memo = hc; }
       if (h === "amount") { colIdx.amount = hc; }
-      if (h.indexOf("account name") !== -1) { colIdx.acctname = hc; }
+      if (h.indexOf("account name") !== -1 || h.indexOf("subaccount") !== -1 || h.indexOf("sub account") !== -1 || h.indexOf("sub-account") !== -1) { colIdx.acctname = hc; }
     }
 
     var targetPeriod = window.periodLabels.cur;
     var matches = [];
+    var acctOnlyCount = 0;
+    var periodOnlyCount = 0;
     for (var i = 1; i < rows.length; i++) {
       var r = rows[i];
       if (!r) { continue; }
       var acctName = String(r[colIdx.acctname] || "").replace(/^\s+|\s+$/g, "");
-      if (acctName.toLowerCase() !== accountName.toLowerCase()) { continue; }
+      var acctMatches = acctName.toLowerCase() === accountName.toLowerCase();
       var periodTxt = String(r[colIdx.period] || "").replace(/^\s+|\s+$/g, "");
-      if (periodTxt.toLowerCase() !== targetPeriod.toLowerCase()) { continue; }
+      var periodMatches = normalizePeriod(periodTxt) === normalizePeriod(targetPeriod);
+      if (acctMatches) { acctOnlyCount = acctOnlyCount + 1; }
+      if (periodMatches) { periodOnlyCount = periodOnlyCount + 1; }
+      if (!acctMatches || !periodMatches) { continue; }
       var amt = numVal(r[colIdx.amount]);
       if (amt === 0) { continue; }
       matches.push({
@@ -1173,7 +1269,10 @@ function openTxnModal(accountName) {
     document.getElementById("txn-modal-sum").textContent = "Total: " + fmtMoney(total);
 
     if (matches.length === 0) {
-      document.getElementById("txn-modal-table").innerHTML = "<tbody><tr><td style=\"text-align:center;color:#94a3b8;padding:24px;\">No transactions found for " + accountName + " in " + targetPeriod + ".</td></tr></tbody>";
+      var diag = "Searched " + (rows.length - 1) + " total rows in Raw_GL. " +
+        acctOnlyCount + " row(s) matched account \"" + accountName + "\" (any period). " +
+        periodOnlyCount + " row(s) matched period \"" + targetPeriod + "\" (any account).";
+      document.getElementById("txn-modal-table").innerHTML = "<tbody><tr><td style=\"text-align:center;color:#94a3b8;padding:24px;\">No transactions found for " + accountName + " in " + targetPeriod + ".<br><br><span style=\"font-size:11px;\">" + diag + "</span></td></tr></tbody>";
     }
   }, function (e) {
     document.getElementById("txn-modal-sub").textContent = "Could not load transactions: " + e.message;
@@ -1899,6 +1998,7 @@ function loadCF() {
 function loadForecast() {
   document.getElementById("forecast-loading").style.display = "flex";
   document.getElementById("forecast-content").style.display = "none";
+  loadForecastPeriodOptions();
   return fetchRange("13WK_FORECAST!A1:R45").then(function (rows) {
     try {
       if (!rows || rows.length < 17) {
@@ -1988,7 +2088,14 @@ function loadForecast() {
           tagClean = (colIndexInData < 2) ? "Actual" : "Forecast";
         }
 
-        startTxt = tagClean + " \u00B7 " + startTxt;
+        var weekLabelRaw = headerRowArr[c];
+        var weekLabelClean = "";
+        if (weekLabelRaw !== undefined && weekLabelRaw !== null) {
+          var weekCandidate = String(weekLabelRaw).replace(/^\s+|\s+$/g, "");
+          if (/^week\s*\d+$/i.test(weekCandidate)) { weekLabelClean = weekCandidate; }
+        }
+
+        startTxt = weekLabelClean + "\n" + tagClean + "\n" + startTxt;
         colLabels.push(startTxt);
         colIndexInData = colIndexInData + 1;
       }
@@ -2042,7 +2149,7 @@ function loadForecast() {
       var endCashLabels = [];
       var endCashData = [];
       for (var ec = labelColIdx + 1; ec < numCols; ec++) {
-        endCashLabels.push(colLabels[ec - labelColIdx - 1]);
+        endCashLabels.push(colLabels[ec - labelColIdx - 1].split("\n"));
         endCashData.push(endCashRow ? numVal(endCashRow[ec]) : 0);
       }
       window.charts.endcash = new Chart(document.getElementById("endcash-chart"), {
