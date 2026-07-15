@@ -565,23 +565,30 @@ function changePeriod(newPeriod) {
 function loadForecastPeriodOptions() {
   var sel = document.getElementById("forecast-period-select");
   if (!sel) { return; }
-  fetchRange("13WK_FORECAST!B4:B4").then(function (curRows) {
-    var currentRaw = curRows && curRows[0] ? curRows[0][0] : null;
-    var baseDate = currentRaw ? new Date(currentRaw) : new Date();
-    if (isNaN(baseDate.getTime())) { baseDate = new Date(); }
-
+  fetchRange("PERIOD_CONTROL!R1:R50").then(function (rows) {
     var opts = "";
-    for (var i = -8; i <= 12; i++) {
-      var d = new Date(baseDate.getTime());
-      d.setDate(d.getDate() + i * 7);
-      var label = (d.getMonth() + 1) + "/" + d.getDate() + "/" + d.getFullYear();
-      var selAttr = (i === 0) ? " selected" : "";
-      opts += "<option value=\"" + label + "\"" + selAttr + ">" + label + (i === 0 ? " (current)" : "") + "</option>";
-    }
-    sel.innerHTML = opts;
-    sel.disabled = false;
+    var currentVal = null;
+    fetchRange("13WK_FORECAST!B4:B4").then(function (curRows) {
+      currentVal = curRows && curRows[0] ? curRows[0][0] : null;
+      for (var i = 0; i < rows.length; i++) {
+        var v = String((rows[i] || [])[0] || "").replace(/^\s+|\s+$/g, "");
+        if (!v) { continue; }
+        var selAttr = (currentVal && v === String(currentVal).replace(/^\s+|\s+$/g, "")) ? " selected" : "";
+        opts += "<option value=\"" + v + "\"" + selAttr + ">" + v + "</option>";
+      }
+      sel.innerHTML = opts || "<option>No weeks found</option>";
+      sel.disabled = opts === "";
+    }, function () {
+      for (var j = 0; j < rows.length; j++) {
+        var v2 = String((rows[j] || [])[0] || "").replace(/^\s+|\s+$/g, "");
+        if (!v2) { continue; }
+        opts += "<option value=\"" + v2 + "\">" + v2 + "</option>";
+      }
+      sel.innerHTML = opts || "<option>No weeks found</option>";
+      sel.disabled = opts === "";
+    });
   }, function () {
-    sel.innerHTML = "<option>Could not load current week</option>";
+    sel.innerHTML = "<option>Could not load weeks</option>";
   });
 }
 
