@@ -1012,7 +1012,7 @@ function normalizePeriod(s) {
 
 function getTxnCache() {
   if (window.txnCache) { return Promise.resolve(window.txnCache); }
-  return fetchRange("Raw_GL!A1:L20000").then(function (rows) {
+  return fetchRange("Raw_GL!A1:M20000").then(function (rows) {
     window.txnCache = rows;
     return rows;
   });
@@ -1032,7 +1032,7 @@ function renderTop3Drivers(allFlags) {
 
   getTxnCache().then(function (rows) {
     var headerRow = rows[0] || [];
-    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctname: 11 };
+    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctname: 12 };
     for (var hc = 0; hc < headerRow.length; hc++) {
       var h = String(headerRow[hc] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
       if (h === "date") { colIdx.date = hc; }
@@ -1042,7 +1042,7 @@ function renderTop3Drivers(allFlags) {
       if (h === "name") { colIdx.name = hc; }
       if (h === "memo") { colIdx.memo = hc; }
       if (h === "amount") { colIdx.amount = hc; }
-      if (h.indexOf("account name") !== -1 || h === "subaccount") { colIdx.acctname = hc; }
+      if (h.indexOf("account name") !== -1 || h.indexOf("subaccount") !== -1 || h.indexOf("sub account") !== -1 || h.indexOf("sub-account") !== -1) { colIdx.acctname = hc; }
     }
 
     var targetPeriod = window.periodLabels.cur;
@@ -1129,7 +1129,7 @@ function openTxnModal(accountName) {
 
   getTxnCache().then(function (rows) {
     var headerRow = rows[0] || [];
-    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctnum: 10, acctname: 11 };
+    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctnum: 10, acctname: 12 };
     for (var hc = 0; hc < headerRow.length; hc++) {
       var h = String(headerRow[hc] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
       if (h === "date") { colIdx.date = hc; }
@@ -1140,7 +1140,7 @@ function openTxnModal(accountName) {
       if (h === "account") { colIdx.account = hc; }
       if (h === "memo") { colIdx.memo = hc; }
       if (h === "amount") { colIdx.amount = hc; }
-      if (h.indexOf("account name") !== -1 || h === "subaccount") { colIdx.acctname = hc; }
+      if (h.indexOf("account name") !== -1 || h.indexOf("subaccount") !== -1 || h.indexOf("sub account") !== -1 || h.indexOf("sub-account") !== -1) { colIdx.acctname = hc; }
     }
 
     var targetPeriod = window.periodLabels.cur;
