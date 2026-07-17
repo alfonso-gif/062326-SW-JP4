@@ -329,26 +329,61 @@ function showTab(name, el) {
 
 function parseCSV(text) {
   var rows = [];
-  var lines = text.split(String.fromCharCode(10));
-  for (var li = 0; li < lines.length; li++) {
-    var line = lines[li];
-    if (line.replace(/\s/g, "") === "") { continue; }
-    var cells = [];
-    var cur = "";
-    var inQ = false;
-    for (var i = 0; i < line.length; i++) {
-      var ch = line.charAt(i);
+  var cells = [];
+  var cur = "";
+  var inQ = false;
+  var i = 0;
+  var len = text.length;
+  while (i < len) {
+    var ch = text.charAt(i);
+    if (inQ) {
       if (ch === String.fromCharCode(34)) {
-        inQ = !inQ;
-      } else if (ch === "," && !inQ) {
-        cells.push(cur.replace(/^\s+|\s+$/g, ""));
-        cur = "";
+        if (text.charAt(i + 1) === String.fromCharCode(34)) {
+          cur = cur + String.fromCharCode(34);
+          i = i + 2;
+          continue;
+        } else {
+          inQ = false;
+          i = i + 1;
+          continue;
+        }
       } else {
         cur = cur + ch;
+        i = i + 1;
+        continue;
+      }
+    } else {
+      if (ch === String.fromCharCode(34)) {
+        inQ = true;
+        i = i + 1;
+        continue;
+      } else if (ch === ",") {
+        cells.push(cur.replace(/^\s+|\s+$/g, ""));
+        cur = "";
+        i = i + 1;
+        continue;
+      } else if (ch === String.fromCharCode(13)) {
+        i = i + 1;
+        continue;
+      } else if (ch === String.fromCharCode(10)) {
+        cells.push(cur.replace(/^\s+|\s+$/g, ""));
+        cur = "";
+        var isBlankRow = cells.length === 1 && cells[0] === "";
+        if (!isBlankRow) { rows.push(cells); }
+        cells = [];
+        i = i + 1;
+        continue;
+      } else {
+        cur = cur + ch;
+        i = i + 1;
+        continue;
       }
     }
+  }
+  if (cur !== "" || cells.length > 0) {
     cells.push(cur.replace(/^\s+|\s+$/g, ""));
-    rows.push(cells);
+    var isBlankLast = cells.length === 1 && cells[0] === "";
+    if (!isBlankLast) { rows.push(cells); }
   }
   return rows;
 }
