@@ -1115,10 +1115,32 @@ function normalizePeriod(s) {
 
 function getTxnCache() {
   if (window.txnCache) { return Promise.resolve(window.txnCache); }
-  return fetchRange("Raw_GL!A1:M20000").then(function (rows) {
-    window.txnCache = rows;
-    return rows;
-  });
+
+  var bestKnownCount = 0;
+  try {
+    bestKnownCount = parseInt(localStorage.getItem("rawGLBestRowCount") || "0", 10) || 0;
+  } catch (e) { }
+
+  function rememberCount(n) {
+    try {
+      if (n > bestKnownCount) { localStorage.setItem("rawGLBestRowCount", String(n)); }
+    } catch (e) { }
+  }
+
+  function attempt(triesLeft, bestSoFar) {
+    return fetchRange("Raw_GL!A1:M20000").then(function (rows) {
+      var best = (rows.length > bestSoFar.length) ? rows : bestSoFar;
+      var seemsTruncated = bestKnownCount > 0 && best.length < bestKnownCount * 0.9;
+      if (seemsTruncated && triesLeft > 0) {
+        return attempt(triesLeft - 1, best);
+      }
+      rememberCount(best.length);
+      window.txnCache = best;
+      return best;
+    });
+  }
+
+  return attempt(2, []);
 }
 
 function renderTop3Drivers(allFlags) {
@@ -1306,9 +1328,17 @@ function openTxnModal(accountName) {
     if (matches.length === 0) {
       var sampleVals = [];
       var seenVals = {};
-      for (var si = 1; si < rows.length && sampleVals.length < 8; si++) {
+      var fuzzyVals = [];
+      var seenFuzzy = {};
+      var firstWord = accountName.split(" ")[0].toLowerCase();
+      for (var si = 1; si < rows.length; si++) {
         var sv = String((rows[si] || [])[colIdx.acctname] || "").replace(/^\s+|\s+$/g, "");
-        if (sv && !seenVals[sv]) { seenVals[sv] = true; sampleVals.push(sv); }
+        if (!sv) { continue; }
+        if (sampleVals.length < 8 && !seenVals[sv]) { seenVals[sv] = true; sampleVals.push(sv); }
+        if (firstWord && sv.toLowerCase().indexOf(firstWord) !== -1 && !seenFuzzy[sv]) {
+          seenFuzzy[sv] = true;
+          fuzzyVals.push(sv);
+        }
       }
       var fullRowDump = [];
       var sampleRow = rows[1] || [];
@@ -1318,8 +1348,8 @@ function openTxnModal(accountName) {
       var diag = "Searched " + (rows.length - 1) + " total rows in Raw_GL. " +
         acctOnlyCount + " row(s) matched account \"" + accountName + "\" (any period). " +
         periodOnlyCount + " row(s) matched period \"" + targetPeriod + "\" (any account). " +
-        "Sample values at column index " + colIdx.acctname + ": " + JSON.stringify(sampleVals) + ". " +
-        "FULL ROW 2 DUMP: " + fullRowDump.join(" | ");
+        "Values similar to \"" + accountName + "\": " + JSON.stringify(fuzzyVals) + ". " +
+        "Random sample of subaccount values: " + JSON.stringify(sampleVals);
       document.getElementById("txn-modal-table").innerHTML = "<tbody><tr><td style=\"text-align:left;color:#94a3b8;padding:24px;word-break:break-all;\">No transactions found for " + accountName + " in " + targetPeriod + ".<br><br><span style=\"font-size:11px;\">" + diag + "</span></td></tr></tbody>";
     }
   }, function (e) {
@@ -2235,6 +2265,7 @@ function loadForecast() {
 }
 
 function loadAll() {
+  window.txnCache = null;
   document.getElementById("global-error").style.display = "none";
   var connBar = document.getElementById("conn-test");
   connBar.className = "conn-bar";
