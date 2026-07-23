@@ -552,9 +552,16 @@ function loadPeriodOptions() {
       return da.getTime() - db.getTime();
     });
 
+    var curLabel = window.periodLabels.cur;
+    var curFound = false;
+    for (var pk = 0; pk < periods.length; pk++) {
+      if (periods[pk] === curLabel) { curFound = true; }
+    }
+    if (curLabel && !curFound) { periods.push(curLabel); }
+
     var opts = "";
     for (var j = 0; j < periods.length; j++) {
-      var selAttr = (periods[j] === window.periodLabels.cur) ? " selected" : "";
+      var selAttr = (periods[j] === curLabel) ? " selected" : "";
       opts += "<option value=\"" + periods[j] + "\"" + selAttr + ">" + periods[j] + "</option>";
     }
     sel.innerHTML = opts || "<option>No periods found</option>";
@@ -1321,13 +1328,19 @@ function openSingleTxnModal(v, t) {
   document.getElementById("txn-modal-sum").textContent = "Total: " + fmtMoney(tx.amount);
 }
 
-function openTxnModal(accountName) {
+function openTxnModal(accountName, exactDate) {
   document.getElementById("txn-modal-title").textContent = accountName;
   document.getElementById("txn-modal-sub").textContent = "Loading transactions...";
   document.getElementById("txn-modal-table").innerHTML = "";
   document.getElementById("txn-modal-count").textContent = "";
   document.getElementById("txn-modal-sum").textContent = "";
   document.getElementById("txn-modal").className = "modal-overlay show";
+
+  function dateKey(s) {
+    var d = new Date(s);
+    if (isNaN(d.getTime())) { return String(s || "").replace(/^\s+|\s+$/g, "").toLowerCase(); }
+    return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
+  }
 
   getTxnCache().then(function (rows) {
     var headerRow = rows[0] || [];
@@ -1345,7 +1358,9 @@ function openTxnModal(accountName) {
       if (h.indexOf("account name") !== -1 || h.indexOf("subaccount") !== -1 || h.indexOf("sub account") !== -1 || h.indexOf("sub-account") !== -1) { colIdx.acctname = hc; }
     }
 
+    var isDailyMode = !!exactDate;
     var targetPeriod = window.periodLabels.cur;
+    var targetDateKey = isDailyMode ? dateKey(exactDate) : null;
     var matches = [];
     var acctOnlyCount = 0;
     var periodOnlyCount = 0;
@@ -1354,8 +1369,13 @@ function openTxnModal(accountName) {
       if (!r) { continue; }
       var acctName = String(r[colIdx.acctname] || "").replace(/^\s+|\s+$/g, "");
       var acctMatches = acctName.toLowerCase() === accountName.toLowerCase();
-      var periodTxt = String(r[colIdx.period] || "").replace(/^\s+|\s+$/g, "");
-      var periodMatches = normalizePeriod(periodTxt) === normalizePeriod(targetPeriod);
+      var periodMatches;
+      if (isDailyMode) {
+        periodMatches = dateKey(r[colIdx.date]) === targetDateKey;
+      } else {
+        var periodTxt = String(r[colIdx.period] || "").replace(/^\s+|\s+$/g, "");
+        periodMatches = normalizePeriod(periodTxt) === normalizePeriod(targetPeriod);
+      }
       if (acctMatches) { acctOnlyCount = acctOnlyCount + 1; }
       if (periodMatches) { periodOnlyCount = periodOnlyCount + 1; }
       if (!acctMatches || !periodMatches) { continue; }
@@ -1378,7 +1398,8 @@ function openTxnModal(accountName) {
       return da.getTime() - db.getTime();
     });
 
-    document.getElementById("txn-modal-sub").textContent = targetPeriod + " \u00B7 " + matches.length + " transaction" + (matches.length === 1 ? "" : "s");
+    var subLabel = isDailyMode ? exactDate : targetPeriod;
+    document.getElementById("txn-modal-sub").textContent = subLabel + " \u00B7 " + matches.length + " transaction" + (matches.length === 1 ? "" : "s");
 
     var tableRows = [];
     var total = 0;
@@ -1423,11 +1444,11 @@ function openTxnModal(accountName) {
         fullRowDump.push(fc + "=[" + String(sampleRow[fc] || "") + "]");
       }
       var diag = "Searched " + (rows.length - 1) + " total rows in Raw_GL. " +
-        acctOnlyCount + " row(s) matched account \"" + accountName + "\" (any period). " +
-        periodOnlyCount + " row(s) matched period \"" + targetPeriod + "\" (any account). " +
+        acctOnlyCount + " row(s) matched account \"" + accountName + "\" (any " + (isDailyMode ? "date" : "period") + "). " +
+        periodOnlyCount + " row(s) matched " + (isDailyMode ? ("date \"" + exactDate + "\"") : ("period \"" + targetPeriod + "\"")) + " (any account). " +
         "Values similar to \"" + accountName + "\": " + JSON.stringify(fuzzyVals) + ". " +
         "Random sample of subaccount values: " + JSON.stringify(sampleVals);
-      document.getElementById("txn-modal-table").innerHTML = "<tbody><tr><td style=\"text-align:left;color:#94a3b8;padding:24px;word-break:break-all;\">No transactions found for " + accountName + " in " + targetPeriod + ".<br><br><span style=\"font-size:11px;\">" + diag + "</span></td></tr></tbody>";
+      document.getElementById("txn-modal-table").innerHTML = "<tbody><tr><td style=\"text-align:left;color:#94a3b8;padding:24px;word-break:break-all;\">No transactions found for " + accountName + " " + (isDailyMode ? ("on " + exactDate) : ("in " + targetPeriod)) + ".<br><br><span style=\"font-size:11px;\">" + diag + "</span></td></tr></tbody>";
     }
   }, function (e) {
     document.getElementById("txn-modal-sub").textContent = "Could not load transactions: " + e.message;
@@ -1856,7 +1877,7 @@ function wirePLToggles(tableId) {
   }
 }
 
-function makeTableWithGroups(el, rows, cols) {
+function makeTableWithGroups(el, rows, cols, dailyDate) {
   if (!el) { return; }
   el.innerHTML = "";
   var thead = document.createElement("thead");
@@ -1877,20 +1898,24 @@ function makeTableWithGroups(el, rows, cols) {
     if (rowData.isLeafClickable) {
       tr.className = (tr.className ? tr.className + " " : "") + "pl-clickable";
       tr.setAttribute("data-account-name", rowData.cells[0].text);
+      if (dailyDate) { tr.setAttribute("data-target-date", dailyDate); }
       tr.onclick = function (ev) {
         if (ev && ev.stopPropagation) { ev.stopPropagation(); }
         var acctName = this.getAttribute("data-account-name");
-        openTxnModal(acctName);
+        var targetDate = this.getAttribute("data-target-date");
+        openTxnModal(acctName, targetDate);
       };
     }
     if (rowData.isSub) {
       tr.className = (tr.className ? tr.className + " " : "") + "sub-row pl-clickable";
       tr.setAttribute("data-group", rowData.groupId);
       tr.setAttribute("data-account-name", rowData.cells[0].text);
+      if (dailyDate) { tr.setAttribute("data-target-date", dailyDate); }
       tr.onclick = function (ev) {
         if (ev && ev.stopPropagation) { ev.stopPropagation(); }
         var acctName = this.getAttribute("data-account-name");
-        openTxnModal(acctName);
+        var targetDate = this.getAttribute("data-target-date");
+        openTxnModal(acctName, targetDate);
       };
     }
     for (var k = 0; k < rowData.cells.length; k++) {
@@ -1910,10 +1935,22 @@ function loadPL() {
 }
 
 function loadDailyPL() {
-  return renderPLGeneric("CALC_PL with SA, Daily!A1:H300", "pldaily", "pldaily-table");
+  return fetchRange("PERIOD_CONTROL!C4:C4").then(function (curRows) {
+    var raw = curRows && curRows[0] ? curRows[0][0] : null;
+    var dailyDateStr = null;
+    if (raw) {
+      var d = new Date(raw);
+      if (!isNaN(d.getTime())) {
+        dailyDateStr = (d.getMonth() + 1) + "/" + d.getDate() + "/" + d.getFullYear();
+      }
+    }
+    return renderPLGeneric("CALC_PL with SA, Daily!A1:H300", "pldaily", "pldaily-table", dailyDateStr);
+  }, function () {
+    return renderPLGeneric("CALC_PL with SA, Daily!A1:H300", "pldaily", "pldaily-table", null);
+  });
 }
 
-function renderPLGeneric(range, section, tableId) {
+function renderPLGeneric(range, section, tableId, dailyDate) {
   document.getElementById(section + "-loading").style.display = "flex";
   document.getElementById(section + "-content").style.display = "none";
   return fetchRange(range).then(function (rows) {
@@ -2066,7 +2103,7 @@ function renderPLGeneric(range, section, tableId) {
     }
     dataRows = filteredRows;
 
-    makeTableWithGroups(document.getElementById(tableId), dataRows, colHeaders);
+    makeTableWithGroups(document.getElementById(tableId), dataRows, colHeaders, dailyDate);
     wirePLToggles(tableId);
 
     setLoaded(section);
