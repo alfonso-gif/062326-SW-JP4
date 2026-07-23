@@ -228,6 +228,9 @@
 </div>
 
 <div id="section-pldaily" class="section">
+  <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+    <input type="date" id="pldaily-date-picker" onchange="changeDailyPeriod(this.value)" style="font-size:12px;padding:6px 10px;border-radius:6px;border:1px solid #e2e8f0;color:#334155;background:#fff;" disabled>
+  </div>
   <div class="card">
     <div class="card-title">Profit &amp; Loss (Daily)</div>
     <div style="text-align:center;color:#94a3b8;padding:48px 24px;font-size:13px;">
@@ -656,6 +659,67 @@ function changeForecastPeriod(newVal) {
       sel.disabled = false;
       alert("Could not switch 13-week period: " + err.message);
       loadForecastPeriodOptions();
+    });
+}
+
+function loadDailyPeriodPicker() {
+  var picker = document.getElementById("pldaily-date-picker");
+  if (!picker) { return; }
+  fetchRange("PERIOD_CONTROL!C4:C4").then(function (rows) {
+    var raw = rows && rows[0] ? rows[0][0] : null;
+    if (raw) {
+      var d = new Date(raw);
+      if (!isNaN(d.getTime())) {
+        var mm = (d.getMonth() + 1);
+        var dd = d.getDate();
+        var mmStr = (mm < 10) ? ("0" + mm) : String(mm);
+        var ddStr = (dd < 10) ? ("0" + dd) : String(dd);
+        picker.value = d.getFullYear() + "-" + mmStr + "-" + ddStr;
+      }
+    }
+    picker.disabled = false;
+  }, function () {
+    picker.disabled = false;
+  });
+}
+
+function changeDailyPeriod(dateVal) {
+  if (!dateVal) { return; }
+  if (!window.PERIOD_UPDATE_URL) {
+    alert("Period switching isn't configured yet. See period-updater.gs for setup instructions, then set window.PERIOD_UPDATE_URL in the dashboard code.");
+    loadDailyPeriodPicker();
+    return;
+  }
+  var picker = document.getElementById("pldaily-date-picker");
+  picker.disabled = true;
+
+  var parts = dateVal.split("-");
+  var formatted = parseInt(parts[1], 10) + "/" + parseInt(parts[2], 10) + "/" + parts[0];
+
+  fetch(window.PERIOD_UPDATE_URL + "?period=" + encodeURIComponent(formatted) + "&sheet=" + encodeURIComponent("PERIOD_CONTROL") + "&cell=C4")
+    .then(function (resp) {
+      return resp.text().then(function (bodyText) {
+        var parsed = null;
+        try { parsed = JSON.parse(bodyText); } catch (e) { }
+        if (!resp.ok) {
+          throw new Error("HTTP " + resp.status + " from Apps Script.");
+        }
+        if (!parsed) {
+          throw new Error("Apps Script didn't return JSON \u2014 got: " + bodyText.slice(0, 200));
+        }
+        if (parsed.status !== "ok") {
+          throw new Error(parsed.message || "Apps Script reported an error.");
+        }
+        setTimeout(function () {
+          window.txnCache = null;
+          loadAll();
+        }, 2500);
+      });
+    })
+    .catch(function (err) {
+      picker.disabled = false;
+      alert("Could not switch daily period: " + err.message);
+      loadDailyPeriodPicker();
     });
 }
 
@@ -2291,6 +2355,7 @@ function loadAll() {
     loadCF();
     loadForecast();
     loadPeriodOptions();
+    loadDailyPeriodPicker();
   }, function () {
     return null;
   });
