@@ -613,7 +613,7 @@ function loadForecastPeriodOptions() {
   var sel = document.getElementById("forecast-period-select");
   if (!sel) { return; }
   fetchRange("13WK_FORECAST!B4:B4").then(function (curRows) {
-    var currentRaw = curRows && curRows[0] ? curRows[0][0] : null;
+    var currentRaw = (curRows && curRows[3]) ? curRows[3][1] : null;
     var baseDate = currentRaw ? new Date(currentRaw) : new Date();
     if (isNaN(baseDate.getTime())) { baseDate = new Date(); }
 
@@ -671,7 +671,7 @@ function loadDailyPeriodPicker() {
   var picker = document.getElementById("pldaily-date-picker");
   if (!picker) { return; }
   fetchRange("PERIOD_CONTROL!C4:C4").then(function (rows) {
-    var raw = rows && rows[0] ? rows[0][0] : null;
+    var raw = (rows && rows[3]) ? rows[3][2] : null;
     if (raw) {
       var d = new Date(raw);
       if (!isNaN(d.getTime())) {
@@ -1936,7 +1936,7 @@ function loadPL() {
 
 function loadDailyPL() {
   return fetchRange("PERIOD_CONTROL!C4:C4").then(function (curRows) {
-    var raw = curRows && curRows[0] ? curRows[0][0] : null;
+    var raw = (curRows && curRows[3]) ? curRows[3][2] : null;
     var dailyDateStr = null;
     if (raw) {
       var d = new Date(raw);
