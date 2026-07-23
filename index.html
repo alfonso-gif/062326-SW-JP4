@@ -689,10 +689,25 @@ function changeDailyPeriod(dateVal) {
     return;
   }
   var picker = document.getElementById("pldaily-date-picker");
-  picker.disabled = true;
 
   var parts = dateVal.split("-");
-  var formatted = parseInt(parts[1], 10) + "/" + parseInt(parts[2], 10) + "/" + parts[0];
+  var selectedDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+  var cutoff = new Date(2025, 9, 1); // Oct 1, 2025 - start of NetSuite integration period
+
+  var finalDate = selectedDate;
+  if (selectedDate < cutoff) {
+    finalDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0); // last day of that month
+    alert("The selected period is not within the NetSuite Integration period. The displayed P&L will be the same as the Monthly P&L.");
+    var mmDisp = finalDate.getMonth() + 1;
+    var ddDisp = finalDate.getDate();
+    var mmDispStr = (mmDisp < 10) ? ("0" + mmDisp) : String(mmDisp);
+    var ddDispStr = (ddDisp < 10) ? ("0" + ddDisp) : String(ddDisp);
+    picker.value = finalDate.getFullYear() + "-" + mmDispStr + "-" + ddDispStr;
+  }
+
+  picker.disabled = true;
+
+  var formatted = (finalDate.getMonth() + 1) + "/" + finalDate.getDate() + "/" + finalDate.getFullYear();
 
   fetch(window.PERIOD_UPDATE_URL + "?period=" + encodeURIComponent(formatted) + "&sheet=" + encodeURIComponent("PERIOD_CONTROL") + "&cell=C4")
     .then(function (resp) {
