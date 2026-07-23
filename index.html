@@ -231,11 +231,9 @@
   <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
     <input type="date" id="pldaily-date-picker" onchange="changeDailyPeriod(this.value)" style="font-size:12px;padding:6px 10px;border-radius:6px;border:1px solid #e2e8f0;color:#334155;background:#fff;" disabled>
   </div>
-  <div class="card">
-    <div class="card-title">Profit &amp; Loss (Daily)</div>
-    <div style="text-align:center;color:#94a3b8;padding:48px 24px;font-size:13px;">
-      Daily P&amp;L tab is being set up in the spreadsheet.<br>This view will populate automatically once it's ready.
-    </div>
+  <div id="pldaily-loading" class="loading"><div class="spinner"></div>Loading Daily P&amp;L...</div>
+  <div id="pldaily-content" style="display:none;">
+    <div class="card"><div class="card-title">Profit &amp; Loss (Daily)</div><div style="overflow-x:auto;"><table class="data-table" id="pldaily-table"></table></div></div>
   </div>
 </div>
 
@@ -1818,13 +1816,14 @@ function loadKPI() {
   });
 }
 
-function wirePLToggles() {
-  var categoryRows = document.querySelectorAll("#pl-table tr.has-subs[data-group-toggle]");
+function wirePLToggles(tableId) {
+  var tid = tableId || "pl-table";
+  var categoryRows = document.querySelectorAll("#" + tid + " tr.has-subs[data-group-toggle]");
   for (var i = 0; i < categoryRows.length; i++) {
     var catRow = categoryRows[i];
     catRow.onclick = function () {
       var gid = this.getAttribute("data-group-toggle");
-      var subRows = document.querySelectorAll("#pl-table tr[data-group=\"" + gid + "\"]");
+      var subRows = document.querySelectorAll("#" + tid + " tr[data-group=\"" + gid + "\"]");
       var willExpand = this.className.indexOf("expanded") === -1;
       if (willExpand) {
         this.className = this.className + " expanded";
@@ -1892,9 +1891,17 @@ function makeTableWithGroups(el, rows, cols) {
 }
 
 function loadPL() {
-  document.getElementById("pl-loading").style.display = "flex";
-  document.getElementById("pl-content").style.display = "none";
-  return fetchRange("CALC_PL with Sub-accounts!A1:H300").then(function (rows) {
+  return renderPLGeneric("CALC_PL with Sub-accounts!A1:H300", "pl", "pl-table");
+}
+
+function loadDailyPL() {
+  return renderPLGeneric("CALC_PL with SA, Daily!A1:H300", "pldaily", "pldaily-table");
+}
+
+function renderPLGeneric(range, section, tableId) {
+  document.getElementById(section + "-loading").style.display = "flex";
+  document.getElementById(section + "-content").style.display = "none";
+  return fetchRange(range).then(function (rows) {
     var headers = rows[0] || [];
     var periodCur = headers[2] || window.periodLabels.cur || "Current";
     var periodPrv = headers[3] || window.periodLabels.prior || "Prior";
@@ -2044,12 +2051,12 @@ function loadPL() {
     }
     dataRows = filteredRows;
 
-    makeTableWithGroups(document.getElementById("pl-table"), dataRows, colHeaders);
-    wirePLToggles();
+    makeTableWithGroups(document.getElementById(tableId), dataRows, colHeaders);
+    wirePLToggles(tableId);
 
-    setLoaded("pl");
+    setLoaded(section);
   }, function (e) {
-    setError("pl", "Could not load P&L: " + e.message);
+    setError(section, "Could not load P&L: " + e.message);
   });
 }
 
@@ -2351,6 +2358,7 @@ function loadAll() {
     loadSummary();
     loadKPI();
     loadPL();
+    loadDailyPL();
     loadBS();
     loadCF();
     loadForecast();
