@@ -1903,7 +1903,15 @@ function wirePLToggles(tableId) {
   }
 }
 
-function makeTableWithGroups(el, rows, cols, dailyDate) {
+function getDailyPickerDateStr() {
+  var picker = document.getElementById("pldaily-date-picker");
+  if (!picker || !picker.value) { return null; }
+  var parts = picker.value.split("-");
+  if (parts.length !== 3) { return null; }
+  return parseInt(parts[1], 10) + "/" + parseInt(parts[2], 10) + "/" + parts[0];
+}
+
+function makeTableWithGroups(el, rows, cols, isDailyTable) {
   if (!el) { return; }
   el.innerHTML = "";
   var thead = document.createElement("thead");
@@ -1924,11 +1932,11 @@ function makeTableWithGroups(el, rows, cols, dailyDate) {
     if (rowData.isLeafClickable) {
       tr.className = (tr.className ? tr.className + " " : "") + "pl-clickable";
       tr.setAttribute("data-account-name", rowData.cells[0].text);
-      if (dailyDate) { tr.setAttribute("data-target-date", dailyDate); }
+      if (isDailyTable) { tr.setAttribute("data-daily-table", "1"); }
       tr.onclick = function (ev) {
         if (ev && ev.stopPropagation) { ev.stopPropagation(); }
         var acctName = this.getAttribute("data-account-name");
-        var targetDate = this.getAttribute("data-target-date");
+        var targetDate = this.getAttribute("data-daily-table") ? getDailyPickerDateStr() : null;
         openTxnModal(acctName, targetDate);
       };
     }
@@ -1936,11 +1944,11 @@ function makeTableWithGroups(el, rows, cols, dailyDate) {
       tr.className = (tr.className ? tr.className + " " : "") + "sub-row pl-clickable";
       tr.setAttribute("data-group", rowData.groupId);
       tr.setAttribute("data-account-name", rowData.cells[0].text);
-      if (dailyDate) { tr.setAttribute("data-target-date", dailyDate); }
+      if (isDailyTable) { tr.setAttribute("data-daily-table", "1"); }
       tr.onclick = function (ev) {
         if (ev && ev.stopPropagation) { ev.stopPropagation(); }
         var acctName = this.getAttribute("data-account-name");
-        var targetDate = this.getAttribute("data-target-date");
+        var targetDate = this.getAttribute("data-daily-table") ? getDailyPickerDateStr() : null;
         openTxnModal(acctName, targetDate);
       };
     }
@@ -1960,11 +1968,12 @@ function loadPL() {
   return renderPLGeneric("CALC_PL with Sub-accounts!A1:H300", "pl", "pl-table");
 }
 
-function loadDailyPL(anchorDateStr) {
-  return renderPLGeneric("CALC_PL with SA, Daily!A1:H300", "pldaily", "pldaily-table", anchorDateStr || null);
+function loadDailyPL() {
+  return renderPLGeneric("CALC_PL with SA, Daily!A1:H300", "pldaily", "pldaily-table");
 }
 
-function renderPLGeneric(range, section, tableId, dailyDate) {
+function renderPLGeneric(range, section, tableId) {
+  var isDaily = (section === "pldaily");
   document.getElementById(section + "-loading").style.display = "flex";
   document.getElementById(section + "-content").style.display = "none";
   return fetchRange(range).then(function (rows) {
@@ -2117,7 +2126,7 @@ function renderPLGeneric(range, section, tableId, dailyDate) {
     }
     dataRows = filteredRows;
 
-    makeTableWithGroups(document.getElementById(tableId), dataRows, colHeaders, dailyDate);
+    makeTableWithGroups(document.getElementById(tableId), dataRows, colHeaders, isDaily);
     wirePLToggles(tableId);
 
     setLoaded(section);
@@ -2424,13 +2433,12 @@ function loadAll() {
     loadSummary();
     loadKPI();
     loadPL();
+    loadDailyPL();
     loadBS();
     loadCF();
     loadForecast();
     loadPeriodOptions();
-    loadDailyPeriodPicker().then(function (anchorDateStr) {
-      loadDailyPL(anchorDateStr);
-    });
+    loadDailyPeriodPicker();
   }, function () {
     return null;
   });
