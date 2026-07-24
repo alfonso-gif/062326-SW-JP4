@@ -233,7 +233,7 @@
   </div>
   <div id="pldaily-loading" class="loading"><div class="spinner"></div>Loading Daily P&amp;L...</div>
   <div id="pldaily-content" style="display:none;">
-    <div class="card"><div class="card-title">Profit &amp; Loss (Daily)</div><div style="overflow-x:auto;"><table class="data-table" id="pldaily-table"></table></div></div>
+    <div class="card"><div class="card-title">Profit &amp; Loss (Daily) <span id="pldaily-anchor-debug" style="font-weight:400;color:#94a3b8;font-size:11px;text-transform:none;letter-spacing:normal;"></span></div><div style="overflow-x:auto;"><table class="data-table" id="pldaily-table"></table></div></div>
   </div>
 </div>
 
@@ -1944,8 +1944,12 @@ function loadDailyPL() {
         dailyDateStr = (d.getMonth() + 1) + "/" + d.getDate() + "/" + d.getFullYear();
       }
     }
+    var dbgEl = document.getElementById("pldaily-anchor-debug");
+    if (dbgEl) { dbgEl.textContent = "(anchor date received: raw=\"" + raw + "\", parsed=\"" + dailyDateStr + "\")"; }
     return renderPLGeneric("CALC_PL with SA, Daily!A1:H300", "pldaily", "pldaily-table", dailyDateStr);
   }, function () {
+    var dbgEl2 = document.getElementById("pldaily-anchor-debug");
+    if (dbgEl2) { dbgEl2.textContent = "(anchor date fetch FAILED)"; }
     return renderPLGeneric("CALC_PL with SA, Daily!A1:H300", "pldaily", "pldaily-table", null);
   });
 }
