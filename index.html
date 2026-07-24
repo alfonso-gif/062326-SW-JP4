@@ -787,6 +787,7 @@ function parsePLRowsWithSubInfo(rows) {
   var out = [];
   var categoryHasSubs = {};
   var pendingCategoryIdx = -1;
+  var currentSectionIsExpense = false;
 
   for (var i = 1; i < rows.length; i++) {
     var r = rows[i];
@@ -813,7 +814,13 @@ function parsePLRowsWithSubInfo(rows) {
       if (ll.indexOf("ebit") !== -1) { isTotal = true; }
       if (ll.indexOf("income before") !== -1) { isTotal = true; }
       var sectionPattern = /^(REVENUE|COST OF|OPERATING EXP|DEPRECIATION|OTHER INCOME|FINANCING)/i;
-      if (sectionPattern.test(displayLabel) && numVal(r[2]) === 0 && numVal(r[3]) === 0) { isSectionHeader = true; }
+      if (sectionPattern.test(displayLabel) && numVal(r[2]) === 0 && numVal(r[3]) === 0) {
+        isSectionHeader = true;
+        var upperLabel = displayLabel.toUpperCase();
+        if (upperLabel.indexOf("REVENUE") !== -1) { currentSectionIsExpense = false; }
+        else if (upperLabel.indexOf("OTHER INCOME") !== -1) { currentSectionIsExpense = false; }
+        else { currentSectionIsExpense = true; }
+      }
     }
     var isCategoryRow = (!isSubaccount) && (!isTotal) && (!isSectionHeader);
 
@@ -828,7 +835,8 @@ function parsePLRowsWithSubInfo(rows) {
       type: isSectionHeader ? "grp" : (isTotal ? "tot" : (isCategoryRow ? "cat" : "sub")),
       cur: numVal(r[2]), prv: numVal(r[3]), ytdCur: numVal(r[4]), ytdPrv: numVal(r[5]),
       varD: numVal(r[6]), varP: numVal(r[7]),
-      hasSubs: false
+      hasSubs: false,
+      isExpense: currentSectionIsExpense
     };
     out.push(entry);
     if (isCategoryRow) { pendingCategoryIdx = out.length - 1; }
@@ -840,8 +848,8 @@ function parsePLRowsWithSubInfo(rows) {
   return out;
 }
 
-function favClass(varD, label) {
-  var isExp = EXPENSE_LINES[label] === true;
+function favClass(varD, label, isExpenseFlag) {
+  var isExp = (typeof isExpenseFlag === "boolean") ? isExpenseFlag : (EXPENSE_LINES[label] === true);
   if (Math.abs(varD) < 0.01) { return "kpi-neu"; }
   var fav = (varD < 0 && isExp) || (varD >= 0 && !isExp);
   return fav ? "pos" : "neg";
@@ -1057,7 +1065,7 @@ function renderAlertsPie(allFlags) {
   var legendHtml = "";
   for (var l = 0; l < top5.length; l++) {
     var fr = top5[l];
-    var cls = favClass(fr.varD, fr.label);
+    var cls = favClass(fr.varD, fr.label, fr.isExpense);
     legendHtml += "<div style=\"padding:5px 0;font-size:11.5px;border-bottom:1px solid #f1f5f9;\">";
     legendHtml += "<div style=\"display:flex;align-items:center;gap:8px;\">";
     legendHtml += "<span style=\"width:9px;height:9px;border-radius:2px;background:" + colors[l] + ";flex-shrink:0;\"></span>";
@@ -1276,7 +1284,7 @@ function renderTop3Drivers(allFlags) {
       var top2 = matches.slice(0, 2);
       window.top3TxnCache[v] = top2;
 
-      var cls = favClass(variance.varD, variance.label);
+      var cls = favClass(variance.varD, variance.label, variance.isExpense);
       var sev = Math.abs(variance.varP) >= 40 ? "red" : (Math.abs(variance.varP) >= 15 ? "amber" : "green");
 
       html += "<div style=\"margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #f1f5f9;\">";
