@@ -233,7 +233,7 @@
   </div>
   <div id="pldaily-loading" class="loading"><div class="spinner"></div>Loading Daily P&amp;L...</div>
   <div id="pldaily-content" style="display:none;">
-    <div class="card"><div class="card-title">Profit &amp; Loss (Daily) <span id="pldaily-anchor-debug" style="font-weight:400;color:#94a3b8;font-size:11px;text-transform:none;letter-spacing:normal;"></span></div><div style="overflow-x:auto;"><table class="data-table" id="pldaily-table"></table></div></div>
+    <div class="card"><div class="card-title">Profit &amp; Loss (Daily)</div><div style="overflow-x:auto;"><table class="data-table" id="pldaily-table"></table></div></div>
   </div>
 </div>
 
@@ -669,9 +669,10 @@ function changeForecastPeriod(newVal) {
 
 function loadDailyPeriodPicker() {
   var picker = document.getElementById("pldaily-date-picker");
-  if (!picker) { return; }
-  fetchRange("PERIOD_CONTROL!C4:C4").then(function (rows) {
+  if (!picker) { return Promise.resolve(null); }
+  return fetchRange("PERIOD_CONTROL!C4:C4").then(function (rows) {
     var raw = (rows && rows[3]) ? rows[3][2] : null;
+    var formatted = null;
     if (raw) {
       var d = new Date(raw);
       if (!isNaN(d.getTime())) {
@@ -680,11 +681,14 @@ function loadDailyPeriodPicker() {
         var mmStr = (mm < 10) ? ("0" + mm) : String(mm);
         var ddStr = (dd < 10) ? ("0" + dd) : String(dd);
         picker.value = d.getFullYear() + "-" + mmStr + "-" + ddStr;
+        formatted = mm + "/" + dd + "/" + d.getFullYear();
       }
     }
     picker.disabled = false;
+    return formatted;
   }, function () {
     picker.disabled = false;
+    return null;
   });
 }
 
@@ -1367,9 +1371,19 @@ function openTxnModal(accountName, exactDate) {
       if (h.indexOf("account name") !== -1 || h.indexOf("subaccount") !== -1 || h.indexOf("sub account") !== -1 || h.indexOf("sub-account") !== -1) { colIdx.acctname = hc; }
     }
 
+    function toDayDate(s) {
+      var d = new Date(s);
+      if (isNaN(d.getTime())) { return null; }
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+
     var isDailyMode = !!exactDate;
     var targetPeriod = window.periodLabels.cur;
-    var targetDateKey = isDailyMode ? dateKey(exactDate) : null;
+    var targetDayDate = isDailyMode ? toDayDate(exactDate) : null;
+    var monthStartDate = (isDailyMode && targetDayDate) ? new Date(targetDayDate.getFullYear(), targetDayDate.getMonth(), 1) : null;
+    var rangeLabel = (isDailyMode && targetDayDate && monthStartDate)
+      ? ((monthStartDate.getMonth() + 1) + "/" + monthStartDate.getDate() + "/" + monthStartDate.getFullYear() + " \u2013 " + exactDate)
+      : exactDate;
     var matches = [];
     var acctOnlyCount = 0;
     var periodOnlyCount = 0;
@@ -1380,7 +1394,10 @@ function openTxnModal(accountName, exactDate) {
       var acctMatches = acctName.toLowerCase() === accountName.toLowerCase();
       var periodMatches;
       if (isDailyMode) {
-        periodMatches = dateKey(r[colIdx.date]) === targetDateKey;
+        var rowDayDate = toDayDate(r[colIdx.date]);
+        periodMatches = !!(rowDayDate && monthStartDate && targetDayDate &&
+          rowDayDate.getTime() >= monthStartDate.getTime() &&
+          rowDayDate.getTime() <= targetDayDate.getTime());
       } else {
         var periodTxt = String(r[colIdx.period] || "").replace(/^\s+|\s+$/g, "");
         periodMatches = normalizePeriod(periodTxt) === normalizePeriod(targetPeriod);
@@ -1407,7 +1424,7 @@ function openTxnModal(accountName, exactDate) {
       return da.getTime() - db.getTime();
     });
 
-    var subLabel = isDailyMode ? exactDate : targetPeriod;
+    var subLabel = isDailyMode ? rangeLabel : targetPeriod;
     document.getElementById("txn-modal-sub").textContent = subLabel + " \u00B7 " + matches.length + " transaction" + (matches.length === 1 ? "" : "s");
 
     var tableRows = [];
@@ -1454,10 +1471,10 @@ function openTxnModal(accountName, exactDate) {
       }
       var diag = "Searched " + (rows.length - 1) + " total rows in Raw_GL. " +
         acctOnlyCount + " row(s) matched account \"" + accountName + "\" (any " + (isDailyMode ? "date" : "period") + "). " +
-        periodOnlyCount + " row(s) matched " + (isDailyMode ? ("date \"" + exactDate + "\"") : ("period \"" + targetPeriod + "\"")) + " (any account). " +
+        periodOnlyCount + " row(s) matched " + (isDailyMode ? ("date range \"" + rangeLabel + "\"") : ("period \"" + targetPeriod + "\"")) + " (any account). " +
         "Values similar to \"" + accountName + "\": " + JSON.stringify(fuzzyVals) + ". " +
         "Random sample of subaccount values: " + JSON.stringify(sampleVals);
-      document.getElementById("txn-modal-table").innerHTML = "<tbody><tr><td style=\"text-align:left;color:#94a3b8;padding:24px;word-break:break-all;\">No transactions found for " + accountName + " " + (isDailyMode ? ("on " + exactDate) : ("in " + targetPeriod)) + ".<br><br><span style=\"font-size:11px;\">" + diag + "</span></td></tr></tbody>";
+      document.getElementById("txn-modal-table").innerHTML = "<tbody><tr><td style=\"text-align:left;color:#94a3b8;padding:24px;word-break:break-all;\">No transactions found for " + accountName + " " + (isDailyMode ? ("from " + rangeLabel) : ("in " + targetPeriod)) + ".<br><br><span style=\"font-size:11px;\">" + diag + "</span></td></tr></tbody>";
     }
   }, function (e) {
     document.getElementById("txn-modal-sub").textContent = "Could not load transactions: " + e.message;
@@ -1943,24 +1960,8 @@ function loadPL() {
   return renderPLGeneric("CALC_PL with Sub-accounts!A1:H300", "pl", "pl-table");
 }
 
-function loadDailyPL() {
-  return fetchRange("PERIOD_CONTROL!C4:C4").then(function (curRows) {
-    var raw = (curRows && curRows[3]) ? curRows[3][2] : null;
-    var dailyDateStr = null;
-    if (raw) {
-      var d = new Date(raw);
-      if (!isNaN(d.getTime())) {
-        dailyDateStr = (d.getMonth() + 1) + "/" + d.getDate() + "/" + d.getFullYear();
-      }
-    }
-    var dbgEl = document.getElementById("pldaily-anchor-debug");
-    if (dbgEl) { dbgEl.textContent = "(anchor date received: raw=\"" + raw + "\", parsed=\"" + dailyDateStr + "\")"; }
-    return renderPLGeneric("CALC_PL with SA, Daily!A1:H300", "pldaily", "pldaily-table", dailyDateStr);
-  }, function () {
-    var dbgEl2 = document.getElementById("pldaily-anchor-debug");
-    if (dbgEl2) { dbgEl2.textContent = "(anchor date fetch FAILED)"; }
-    return renderPLGeneric("CALC_PL with SA, Daily!A1:H300", "pldaily", "pldaily-table", null);
-  });
+function loadDailyPL(anchorDateStr) {
+  return renderPLGeneric("CALC_PL with SA, Daily!A1:H300", "pldaily", "pldaily-table", anchorDateStr || null);
 }
 
 function renderPLGeneric(range, section, tableId, dailyDate) {
@@ -2423,12 +2424,13 @@ function loadAll() {
     loadSummary();
     loadKPI();
     loadPL();
-    loadDailyPL();
     loadBS();
     loadCF();
     loadForecast();
     loadPeriodOptions();
-    loadDailyPeriodPicker();
+    loadDailyPeriodPicker().then(function (anchorDateStr) {
+      loadDailyPL(anchorDateStr);
+    });
   }, function () {
     return null;
   });
