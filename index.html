@@ -204,6 +204,10 @@
           <span><span class="legend-dot" style="background:#0ea5e9"></span><span id="leg-cur">Current</span></span>
           <span><span class="legend-dot" style="background:#bae6fd"></span><span id="leg-prv">Prior</span></span>
         </div>
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid #f1f5f9;">
+          <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Last 6 Months \u2014 Operating Revenue</div>
+          <table class="data-table" id="rev-trend-table"></table>
+        </div>
       </div>
     </div>
     <div class="card">
@@ -889,6 +893,62 @@ function renderNarrativeHtml(text) {
     }
   }
   return html;
+}
+
+function loadRevenueTrend() {
+  var tbl = document.getElementById("rev-trend-table");
+  if (!tbl) { return; }
+  var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  getTxnCache().then(function (rows) {
+    var headerRow = rows[0] || [];
+    var colIdx = { date: 0, account: 5, amount: 7 };
+    for (var hc = 0; hc < headerRow.length; hc++) {
+      var h = String(headerRow[hc] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
+      if (h === "date") { colIdx.date = hc; }
+      if (h === "account") { colIdx.account = hc; }
+      if (h === "amount") { colIdx.amount = hc; }
+    }
+
+    var curDate = new Date((window.periodLabels.cur || "") + " 1");
+    if (isNaN(curDate.getTime())) { curDate = new Date(); }
+
+    var months = [];
+    for (var m = 5; m >= 0; m--) {
+      var d = new Date(curDate.getFullYear(), curDate.getMonth() - m, 1);
+      months.push({ year: d.getFullYear(), month: d.getMonth(), label: monthNames[d.getMonth()] + " " + d.getFullYear(), total: 0 });
+    }
+
+    for (var i = 1; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r) { continue; }
+      var acctTxt = String(r[colIdx.account] || "").toLowerCase();
+      if (acctTxt.indexOf("operating revenue") === -1) { continue; }
+      var rowDate = new Date(r[colIdx.date]);
+      if (isNaN(rowDate.getTime())) { continue; }
+      var amt = numVal(r[colIdx.amount]);
+      for (var mi = 0; mi < months.length; mi++) {
+        if (rowDate.getFullYear() === months[mi].year && rowDate.getMonth() === months[mi].month) {
+          months[mi].total = months[mi].total + amt;
+          break;
+        }
+      }
+    }
+
+    var tableRows = [];
+    for (var j = 0; j < months.length; j++) {
+      tableRows.push({
+        cells: [
+          { text: months[j].label, cls: "" },
+          { text: fmtMoney(months[j].total), cls: "" }
+        ],
+        rowClass: (j === months.length - 1) ? "row-total" : ""
+      });
+    }
+    makeTable(tbl, tableRows, ["Month", "Operating Revenue"]);
+  }, function () {
+    tbl.innerHTML = "<tbody><tr><td style=\"color:#94a3b8;padding:12px;font-size:12px;\">Could not load revenue trend.</td></tr></tbody>";
+  });
 }
 
 function loadSummary() {
@@ -2431,6 +2491,7 @@ function loadAll() {
     return Promise.reject(e);
   }).then(function () {
     loadSummary();
+    loadRevenueTrend();
     loadKPI();
     loadPL();
     loadDailyPL();
