@@ -575,6 +575,37 @@ function loadPeriodOptions() {
   });
 }
 
+function callPeriodApi(url, attemptsLeft) {
+  return fetch(url).then(function (resp) {
+    return resp.text().then(function (bodyText) {
+      var parsed = null;
+      try { parsed = JSON.parse(bodyText); } catch (e) { }
+      if (!resp.ok) {
+        if (attemptsLeft > 0) {
+          return new Promise(function (resolve) { setTimeout(resolve, 2000); }).then(function () {
+            return callPeriodApi(url, attemptsLeft - 1);
+          });
+        }
+        throw new Error("HTTP " + resp.status + " from Apps Script after retrying. This usually means either the deployment's access setting isn't \"Anyone\", or you've hit Google's execution rate limit from repeated testing \u2014 wait a minute and try again.");
+      }
+      if (!parsed) {
+        throw new Error("Apps Script didn't return JSON \u2014 got: " + bodyText.slice(0, 200) + ". This often means the request was redirected to a Google sign-in page instead of reaching the script (a domain-restricted deployment).");
+      }
+      if (parsed.status !== "ok") {
+        throw new Error(parsed.message || "Apps Script reported an error.");
+      }
+      return parsed;
+    });
+  }, function (networkErr) {
+    if (attemptsLeft > 0) {
+      return new Promise(function (resolve) { setTimeout(resolve, 2000); }).then(function () {
+        return callPeriodApi(url, attemptsLeft - 1);
+      });
+    }
+    throw new Error("Network error after retrying: " + (networkErr && networkErr.message ? networkErr.message : String(networkErr)));
+  });
+}
+
 function changePeriod(newPeriod) {
   if (!window.PERIOD_UPDATE_URL) {
     alert("Period switching isn't configured yet. See period-updater.gs for setup instructions, then set window.PERIOD_UPDATE_URL in the dashboard code.");
@@ -585,25 +616,12 @@ function changePeriod(newPeriod) {
   sel.disabled = true;
   document.getElementById("period-label").textContent = "Updating to " + newPeriod + "...";
 
-  fetch(window.PERIOD_UPDATE_URL + "?period=" + encodeURIComponent(newPeriod))
-    .then(function (resp) {
-      return resp.text().then(function (bodyText) {
-        var parsed = null;
-        try { parsed = JSON.parse(bodyText); } catch (e) { }
-        if (!resp.ok) {
-          throw new Error("HTTP " + resp.status + " from Apps Script. This usually means the deployment's access setting isn't \"Anyone\" (it may be restricted to your Workspace domain), or the URL/permissions changed.");
-        }
-        if (!parsed) {
-          throw new Error("Apps Script didn't return JSON \u2014 got: " + bodyText.slice(0, 200) + ". This often means the request was redirected to a Google sign-in page instead of reaching the script (a domain-restricted deployment).");
-        }
-        if (parsed.status !== "ok") {
-          throw new Error(parsed.message || "Apps Script reported an error.");
-        }
-        setTimeout(function () {
-          window.txnCache = null;
-          loadAll();
-        }, 2500);
-      });
+  callPeriodApi(window.PERIOD_UPDATE_URL + "?period=" + encodeURIComponent(newPeriod), 2)
+    .then(function () {
+      setTimeout(function () {
+        window.txnCache = null;
+        loadAll();
+      }, 2500);
     })
     .catch(function (err) {
       sel.disabled = false;
@@ -645,24 +663,11 @@ function changeForecastPeriod(newVal) {
   var sel = document.getElementById("forecast-period-select");
   sel.disabled = true;
 
-  fetch(window.PERIOD_UPDATE_URL + "?period=" + encodeURIComponent(newVal) + "&sheet=" + encodeURIComponent("13WK_FORECAST") + "&cell=B4")
-    .then(function (resp) {
-      return resp.text().then(function (bodyText) {
-        var parsed = null;
-        try { parsed = JSON.parse(bodyText); } catch (e) { }
-        if (!resp.ok) {
-          throw new Error("HTTP " + (resp.status || "unknown") + " from Apps Script. This usually means the deployment version was not redeployed, or the access setting is not set to Anyone.");
-        }
-        if (!parsed) {
-          throw new Error("Apps Script didn't return JSON \u2014 got: " + bodyText.slice(0, 200));
-        }
-        if (parsed.status !== "ok") {
-          throw new Error(parsed.message || "Apps Script reported an error. (Note: this requires the Apps Script to support the sheet/cell parameters \u2014 see period-updater-v3.gs)");
-        }
-        setTimeout(function () {
-          loadForecast();
-        }, 2500);
-      });
+  callPeriodApi(window.PERIOD_UPDATE_URL + "?period=" + encodeURIComponent(newVal) + "&sheet=" + encodeURIComponent("13WK_FORECAST") + "&cell=B4", 2)
+    .then(function () {
+      setTimeout(function () {
+        loadForecast();
+      }, 2500);
     })
     .catch(function (err) {
       sel.disabled = false;
@@ -724,25 +729,12 @@ function changeDailyPeriod(dateVal) {
 
   var formatted = (finalDate.getMonth() + 1) + "/" + finalDate.getDate() + "/" + finalDate.getFullYear();
 
-  fetch(window.PERIOD_UPDATE_URL + "?period=" + encodeURIComponent(formatted) + "&sheet=" + encodeURIComponent("PERIOD_CONTROL") + "&cell=C4")
-    .then(function (resp) {
-      return resp.text().then(function (bodyText) {
-        var parsed = null;
-        try { parsed = JSON.parse(bodyText); } catch (e) { }
-        if (!resp.ok) {
-          throw new Error("HTTP " + (resp.status || "unknown") + " from Apps Script. This usually means the deployment version was not redeployed, or the access setting is not set to Anyone.");
-        }
-        if (!parsed) {
-          throw new Error("Apps Script didn't return JSON \u2014 got: " + bodyText.slice(0, 200));
-        }
-        if (parsed.status !== "ok") {
-          throw new Error(parsed.message || "Apps Script reported an error.");
-        }
-        setTimeout(function () {
-          window.txnCache = null;
-          loadAll();
-        }, 2500);
-      });
+  callPeriodApi(window.PERIOD_UPDATE_URL + "?period=" + encodeURIComponent(formatted) + "&sheet=" + encodeURIComponent("PERIOD_CONTROL") + "&cell=C4", 2)
+    .then(function () {
+      setTimeout(function () {
+        window.txnCache = null;
+        loadAll();
+      }, 2500);
     })
     .catch(function (err) {
       picker.disabled = false;
