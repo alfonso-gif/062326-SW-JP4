@@ -651,7 +651,7 @@ function changeForecastPeriod(newVal) {
         var parsed = null;
         try { parsed = JSON.parse(bodyText); } catch (e) { }
         if (!resp.ok) {
-          throw new Error("HTTP " + resp.status + " from Apps Script.");
+          throw new Error("HTTP " + (resp.status || "unknown") + " from Apps Script. This usually means the deployment version was not redeployed, or the access setting is not set to Anyone.");
         }
         if (!parsed) {
           throw new Error("Apps Script didn't return JSON \u2014 got: " + bodyText.slice(0, 200));
@@ -730,7 +730,7 @@ function changeDailyPeriod(dateVal) {
         var parsed = null;
         try { parsed = JSON.parse(bodyText); } catch (e) { }
         if (!resp.ok) {
-          throw new Error("HTTP " + resp.status + " from Apps Script.");
+          throw new Error("HTTP " + (resp.status || "unknown") + " from Apps Script. This usually means the deployment version was not redeployed, or the access setting is not set to Anyone.");
         }
         if (!parsed) {
           throw new Error("Apps Script didn't return JSON \u2014 got: " + bodyText.slice(0, 200));
