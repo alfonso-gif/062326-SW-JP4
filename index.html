@@ -2465,16 +2465,19 @@ function loadForecast() {
         var startTxt = weekStartRow[c];
         if (startTxt === undefined || startTxt === null || startTxt === "") { startTxt = "Wk " + (c - labelColIdx); }
 
-        var tagTxt = tagRow[c];
         var tagClean = "";
-        if (tagTxt !== undefined && tagTxt !== null) { tagClean = String(tagTxt).replace(/^\s+|\s+$/g, ""); }
-        if (tagClean === "") {
-          if (anchorDateForTags && startTxt) {
-            var thisWeekDate = new Date(startTxt);
-            tagClean = (!isNaN(thisWeekDate.getTime()) && thisWeekDate.getTime() <= anchorDateForTags.getTime()) ? "Actual" : "Forecast";
-          } else {
-            tagClean = (colIndexInData < 2) ? "Actual" : "Forecast";
+        if (anchorDateForTags && startTxt) {
+          var thisWeekDate = new Date(startTxt);
+          if (!isNaN(thisWeekDate.getTime())) {
+            tagClean = (thisWeekDate.getTime() <= anchorDateForTags.getTime()) ? "Actual" : "Forecast";
           }
+        }
+        if (tagClean === "") {
+          var tagTxt = tagRow[c];
+          if (tagTxt !== undefined && tagTxt !== null) { tagClean = String(tagTxt).replace(/^\s+|\s+$/g, ""); }
+        }
+        if (tagClean === "") {
+          tagClean = (colIndexInData < 2) ? "Actual" : "Forecast";
         }
 
         var weekLabelClean = "";
