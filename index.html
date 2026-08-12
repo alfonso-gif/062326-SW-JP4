@@ -1400,6 +1400,84 @@ function openSingleTxnModal(v, t) {
   document.getElementById("txn-modal-sum").textContent = "Total: " + fmtMoney(tx.amount);
 }
 
+function openRevRecModal(accountName) {
+  document.getElementById("txn-modal-title").textContent = accountName;
+  document.getElementById("txn-modal-sub").textContent = "Loading...";
+  document.getElementById("txn-modal-table").innerHTML = "";
+  document.getElementById("txn-modal-count").textContent = "";
+  document.getElementById("txn-modal-sum").textContent = "";
+  document.getElementById("txn-modal").className = "modal-overlay show";
+
+  var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var dateStr = getDailyPickerDateStr();
+  var targetMonthLabel = window.periodLabels.cur;
+  if (dateStr) {
+    var pd = new Date(dateStr);
+    if (!isNaN(pd.getTime())) {
+      targetMonthLabel = monthNames[pd.getMonth()] + " " + pd.getFullYear();
+    }
+  }
+
+  fetchRange("Raw_Revrec Clean!A1:K20000").then(function (rows) {
+    var colIdx = { rule: 1, startDate: 2, endDate: 3, acct: 4, amount: 5, journal: 6, postingPeriod: 7, total: 10 };
+
+    var matches = [];
+    for (var i = 1; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r) { continue; }
+      var acctTxt = String(r[colIdx.acct] || "").replace(/^\s+|\s+$/g, "");
+      if (acctTxt.toLowerCase() !== accountName.toLowerCase()) { continue; }
+      var postingTxt = String(r[colIdx.postingPeriod] || "").replace(/^\s+|\s+$/g, "");
+      if (normalizePeriod(postingTxt) !== normalizePeriod(targetMonthLabel)) { continue; }
+      var amt = numVal(r[colIdx.amount]);
+      if (amt === 0) { continue; }
+      matches.push({
+        rule: r[colIdx.rule] || "",
+        startDate: r[colIdx.startDate] || "",
+        endDate: r[colIdx.endDate] || "",
+        acct: r[colIdx.acct] || "",
+        journal: r[colIdx.journal] || "",
+        total: numVal(r[colIdx.total])
+      });
+    }
+
+    document.getElementById("txn-modal-sub").textContent = targetMonthLabel + " \u00B7 " + matches.length + " row" + (matches.length === 1 ? "" : "s");
+
+    if (matches.length === 0) {
+      document.getElementById("txn-modal-table").innerHTML = "<tbody><tr><td style=\"text-align:center;color:#94a3b8;padding:24px;\">No revenue recognition entries found for " + accountName + " in " + targetMonthLabel + ".</td></tr></tbody>";
+      document.getElementById("txn-modal-count").textContent = "0 rows";
+      document.getElementById("txn-modal-sum").textContent = "Total: " + fmtMoney(0);
+      return;
+    }
+
+    var tableRows = [];
+    var totalSum = 0;
+    for (var m = 0; m < matches.length; m++) {
+      var row = matches[m];
+      totalSum = totalSum + row.total;
+      tableRows.push({
+        cells: [
+          { text: String(row.rule), cls: "" },
+          { text: String(row.startDate), cls: "" },
+          { text: String(row.endDate), cls: "" },
+          { text: String(row.acct), cls: "" },
+          { text: String(row.journal), cls: "" },
+          { text: fmtMoney(row.total), cls: row.total < 0 ? "neg" : "" }
+        ],
+        rowClass: ""
+      });
+    }
+
+    makeTable(document.getElementById("txn-modal-table"), tableRows, ["Rev Rec Rule", "Start Date", "End Date", "Recognition Account", "Journal", "Total Revenue Realized"]);
+    document.getElementById("txn-modal-count").textContent = matches.length + " row" + (matches.length === 1 ? "" : "s");
+    document.getElementById("txn-modal-sum").textContent = "Total: " + fmtMoney(totalSum);
+  }, function (e) {
+    document.getElementById("txn-modal-sub").textContent = "Error";
+    var msg = (e && e.message) ? e.message : "unknown error";
+    document.getElementById("txn-modal-table").innerHTML = "<tbody><tr><td style=\"text-align:center;color:#dc2626;padding:24px;\">Could not load Raw_Revrec Clean: " + msg + "</td></tr></tbody>";
+  });
+}
+
 function openTxnModal(accountName, exactDate) {
   document.getElementById("txn-modal-title").textContent = accountName;
   document.getElementById("txn-modal-sub").textContent = "Loading transactions...";
@@ -1992,9 +2070,14 @@ function makeTableWithGroups(el, rows, cols, isDailyTable) {
       tr.className = (tr.className ? tr.className + " " : "") + "pl-clickable";
       tr.setAttribute("data-account-name", rowData.cells[0].text);
       if (isDailyTable) { tr.setAttribute("data-daily-table", "1"); }
+      if (isDailyTable && rowData.isRevenueSection) { tr.setAttribute("data-revrec", "1"); }
       tr.onclick = function (ev) {
         if (ev && ev.stopPropagation) { ev.stopPropagation(); }
         var acctName = this.getAttribute("data-account-name");
+        if (this.getAttribute("data-revrec")) {
+          openRevRecModal(acctName);
+          return;
+        }
         var targetDate = this.getAttribute("data-daily-table") ? getDailyPickerDateStr() : null;
         openTxnModal(acctName, targetDate);
       };
@@ -2004,9 +2087,14 @@ function makeTableWithGroups(el, rows, cols, isDailyTable) {
       tr.setAttribute("data-group", rowData.groupId);
       tr.setAttribute("data-account-name", rowData.cells[0].text);
       if (isDailyTable) { tr.setAttribute("data-daily-table", "1"); }
+      if (isDailyTable && rowData.isRevenueSection) { tr.setAttribute("data-revrec", "1"); }
       tr.onclick = function (ev) {
         if (ev && ev.stopPropagation) { ev.stopPropagation(); }
         var acctName = this.getAttribute("data-account-name");
+        if (this.getAttribute("data-revrec")) {
+          openRevRecModal(acctName);
+          return;
+        }
         var targetDate = this.getAttribute("data-daily-table") ? getDailyPickerDateStr() : null;
         openTxnModal(acctName, targetDate);
       };
@@ -2056,6 +2144,7 @@ function renderPLGeneric(range, section, tableId) {
     var dataRows = [];
 
     var currentGroupId = -1;
+    var currentSectionIsRevenue = false;
 
     for (var i = 1; i < rows.length; i++) {
       var r = rows[i];
@@ -2098,6 +2187,7 @@ function renderPLGeneric(range, section, tableId) {
         var sectionPattern = /^(REVENUE|COST OF|OPERATING EXP|DEPRECIATION|OTHER INCOME|FINANCING)/i;
         if (sectionPattern.test(displayLabel) && curValCheck === 0 && prvValCheck === 0) {
           isSectionHeader = true;
+          currentSectionIsRevenue = /^REVENUE/i.test(displayLabel);
         }
       }
 
@@ -2143,7 +2233,7 @@ function renderPLGeneric(range, section, tableId) {
       else if (isSectionHeader === true) { rowClass = "row-header"; }
       else if (isCategoryRow === true) { rowClass = "row-category"; }
 
-      var rowObj = { cells: cells, rowClass: rowClass };
+      var rowObj = { cells: cells, rowClass: rowClass, isRevenueSection: currentSectionIsRevenue };
       if (isCategoryRow === true) {
         currentGroupId = currentGroupId + 1;
         rowObj.isCategory = true;
