@@ -1230,7 +1230,7 @@ function getTxnCache() {
   function attempt(triesLeft, bestSoFar) {
     return fetchRange("Raw_GL!A1:M20000").then(function (rows) {
       var best = (rows.length > bestSoFar.length) ? rows : bestSoFar;
-      var seemsTruncated = bestKnownCount > 0 && best.length < bestKnownCount * 0.9;
+      var seemsTruncated = bestKnownCount > 0 && best.length < bestKnownCount * 0.5;
       if (seemsTruncated && triesLeft > 0) {
         return attempt(triesLeft - 1, best);
       }
@@ -1241,7 +1241,7 @@ function getTxnCache() {
     });
   }
 
-  window.txnCachePromise = attempt(2, []).catch(function (err) {
+  window.txnCachePromise = attempt(1, []).catch(function (err) {
     window.txnCachePromise = null;
     throw err;
   });
