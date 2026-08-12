@@ -2396,7 +2396,8 @@ function loadForecast() {
 
       var tagRow = rows[headerRowIdx - 1] || [];
       var bestTagMatchCount = -1;
-      for (var tri = Math.max(0, headerRowIdx - 6); tri < headerRowIdx; tri++) {
+      var bestTagRowIdx = -1;
+      for (var tri = 0; tri < headerRowIdx; tri++) {
         var candidateRow = rows[tri] || [];
         var matchCount = 0;
         for (var trc = 0; trc < candidateRow.length; trc++) {
@@ -2407,13 +2408,14 @@ function loadForecast() {
         }
         if (matchCount > bestTagMatchCount) {
           bestTagMatchCount = matchCount;
+          bestTagRowIdx = tri;
           tagRow = candidateRow;
         }
       }
 
       var weekStartRow = rows[headerRowIdx + 1] || [];
       var dataStartIdx = headerRowIdx + 3;
-      var forecastTagDebug = "tagRowMatches=[" + bestTagMatchCount + "] tagRowContent=[" + tagRow.slice(0, 8).join("~") + "]";
+      var forecastTagDebug = "headerRowIdx=[" + headerRowIdx + "] bestTagRowIdx=[" + bestTagRowIdx + "] matches=[" + bestTagMatchCount + "] content=[" + tagRow.slice(0, 8).join("~") + "]";
       var headerRowArr = rows[headerRowIdx] || [];
       var numCols = headerRowArr.length;
       var totalDataCols = numCols - labelColIdx - 1;
