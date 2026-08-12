@@ -2394,31 +2394,25 @@ function loadForecast() {
         return;
       }
 
-      var tagRow = rows[headerRowIdx - 1] || [];
-      var bestTagMatchCount = -1;
-      var bestTagRowIdx = -1;
-      for (var tri = 0; tri < headerRowIdx; tri++) {
-        var candidateRow = rows[tri] || [];
-        var matchCount = 0;
-        for (var trc = 0; trc < candidateRow.length; trc++) {
-          var cv = candidateRow[trc];
-          if (cv === undefined || cv === null) { continue; }
-          var cvClean = String(cv).replace(/^\s+|\s+$/g, "").toLowerCase();
-          if (cvClean === "actual" || cvClean === "forecast") { matchCount = matchCount + 1; }
-        }
-        if (matchCount > bestTagMatchCount) {
-          bestTagMatchCount = matchCount;
-          bestTagRowIdx = tri;
-          tagRow = candidateRow;
-        }
-      }
-
       var weekStartRow = rows[headerRowIdx + 1] || [];
       var dataStartIdx = headerRowIdx + 3;
-      var forecastTagDebug = "headerRowIdx=[" + headerRowIdx + "] bestTagRowIdx=[" + bestTagRowIdx + "] matches=[" + bestTagMatchCount + "] content=[" + tagRow.slice(0, 8).join("~") + "]";
       var headerRowArr = rows[headerRowIdx] || [];
       var numCols = headerRowArr.length;
       var totalDataCols = numCols - labelColIdx - 1;
+
+      var splitColIdx = -1;
+      var prevDateStr = null;
+      var colIdxLoop = 0;
+      for (var cc = labelColIdx + 1; cc < numCols; cc++) {
+        var wsRaw = weekStartRow[cc];
+        var wsClean = (wsRaw === undefined || wsRaw === null) ? "" : String(wsRaw).replace(/^\s+|\s+$/g, "");
+        if (wsClean !== "" && wsClean === prevDateStr && splitColIdx === -1) {
+          splitColIdx = colIdxLoop - 1;
+        }
+        prevDateStr = wsClean;
+        colIdxLoop = colIdxLoop + 1;
+      }
+      var forecastTagDebug = "splitColIdx=[" + splitColIdx + "] (a duplicate week-start date marks the Actual/Forecast split)";
 
       var colLabels = [];
       var colIndexInData = 0;
@@ -2426,11 +2420,11 @@ function loadForecast() {
         var startTxt = weekStartRow[c];
         if (startTxt === undefined || startTxt === null || startTxt === "") { startTxt = "Wk " + (c - labelColIdx); }
 
-        var tagTxt = tagRow[c];
-        var tagClean = "";
-        if (tagTxt !== undefined && tagTxt !== null) { tagClean = String(tagTxt).replace(/^\s+|\s+$/g, ""); }
-        if (tagClean === "") {
+        var tagClean;
+        if (splitColIdx === -1) {
           tagClean = (colIndexInData < 2) ? "Actual" : "Forecast";
+        } else {
+          tagClean = (colIndexInData <= splitColIdx) ? "Actual" : "Forecast";
         }
 
         var weekLabelClean = "";
