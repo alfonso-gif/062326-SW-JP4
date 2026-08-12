@@ -234,6 +234,7 @@
 <div id="section-pldaily" class="section">
   <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
     <input type="date" id="pldaily-date-picker" onchange="changeDailyPeriod(this.value)" style="font-size:12px;padding:6px 10px;border-radius:6px;border:1px solid #e2e8f0;color:#334155;background:#fff;" disabled>
+    <span id="pldaily-conn-status" style="font-size:11px;color:#94a3b8;margin-left:8px;">Connecting to Google Sheets...</span>
   </div>
   <div id="pldaily-loading" class="loading"><div class="spinner"></div>Loading Daily P&amp;L...</div>
   <div id="pldaily-content" style="display:none;">
@@ -2465,6 +2466,16 @@ function loadForecast() {
 function loadAll() {
   window.txnCache = null;
   document.getElementById("global-error").style.display = "none";
+
+  var periodSel = document.getElementById("period-select");
+  if (periodSel) { periodSel.disabled = true; }
+  var forecastSel = document.getElementById("forecast-period-select");
+  if (forecastSel) { forecastSel.disabled = true; }
+  var dailyPicker = document.getElementById("pldaily-date-picker");
+  if (dailyPicker) { dailyPicker.disabled = true; }
+  var dailyStatus = document.getElementById("pldaily-conn-status");
+  if (dailyStatus) { dailyStatus.textContent = "Connecting to Google Sheets..."; dailyStatus.style.display = "inline"; }
+
   var connBar = document.getElementById("conn-test");
   connBar.className = "conn-bar";
   connBar.style.display = "block";
@@ -2491,7 +2502,9 @@ function loadAll() {
     loadCF();
     loadForecast();
     loadPeriodOptions();
-    loadDailyPeriodPicker();
+    loadDailyPeriodPicker().then(function () {
+      if (dailyStatus) { dailyStatus.style.display = "none"; }
+    });
   }, function () {
     return null;
   });
