@@ -62,7 +62,7 @@
   .row-header td { font-weight: 700; color: #0284c7; background: #e0f2fe; font-size: 11px; letter-spacing: 0.03em; padding-top: 10px; }
   .row-category td { font-weight: 700; color: #475569; background: #f1f5f9; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; cursor: pointer; user-select: none; }
   .row-category td:first-child { color: #475569; }
-  .row-category td:first-child::before { content: ""; display: inline-block; font-size: 8px; margin-right: 7px; transition: transform 0.15s; color: #94a3b8; }
+  .row-category td:first-child::before { content: ""; display: inline-block; width: 9px; font-size: 8px; margin-right: 7px; transition: transform 0.15s; color: #94a3b8; }
   .row-category.has-subs td:first-child::before { content: "\25B6"; }
   .row-category.has-subs td { cursor: pointer; }
   .row-category.expanded td:first-child::before { transform: rotate(90deg); }
@@ -263,7 +263,7 @@
 <div id="section-forecast" class="section">
   <div id="forecast-loading" class="loading"><div class="spinner"></div>Loading forecast...</div>
   <div id="forecast-content" style="display:none;">
-    <div class="card"><div class="card-title">Weekly Detail <span id="forecast-tag-debug" style="font-weight:400;color:#94a3b8;font-size:10px;text-transform:none;letter-spacing:normal;"></span></div><div style="overflow-x:auto;"><table class="data-table" id="forecast-table"></table></div></div>
+    <div class="card"><div class="card-title">Weekly Detail</div><div style="overflow-x:auto;"><table class="data-table" id="forecast-table"></table></div></div>
     <div class="card">
       <div class="card-title">Ending Cash Balance</div>
       <div class="chart-wrap-tall"><canvas id="endcash-chart"></canvas></div>
@@ -2503,8 +2503,6 @@ function loadForecast() {
 
       makeTableWithGroups(document.getElementById("forecast-table"), tableRows, ["Line Item"].concat(colLabels), false, false);
       wirePLToggles("forecast-table");
-      var tagDbgEl = document.getElementById("forecast-tag-debug");
-      if (tagDbgEl) { tagDbgEl.textContent = forecastTagDebug; }
 
       destroyChart("endcash");
       var endCashLabels = [];
