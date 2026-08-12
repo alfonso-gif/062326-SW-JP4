@@ -2489,17 +2489,16 @@ function loadForecast() {
         var label = rawLabelStr.replace(/^\s+|\s+$/g, "");
         if (label === "") { continue; }
         var ll = label.toLowerCase();
-        var leadingSpaces = rawLabelStr.length - rawLabelStr.replace(/^\s+/, "").length;
-        var isIndented = leadingSpaces >= 2;
 
         var isTotalRow = (ll.indexOf("total cash") !== -1) || (ll.indexOf("net change") !== -1) || (ll.indexOf("ending cash") !== -1) || (ll.indexOf("beginning cash") !== -1) || (ll.indexOf("minimum cash") !== -1) || (ll.indexOf("surplus") !== -1) || (ll.indexOf("funding needed") !== -1);
-        var isParentCategory = ((ll.indexOf("cash out -") !== -1) || (ll.indexOf("cash in -") !== -1)) && (isIndented === false);
+        var isParentCategory = (ll.indexOf("cash out -") !== -1) || (ll.indexOf("cash in -") !== -1);
+        var isSubItem = (isTotalRow === false) && (isParentCategory === false) && (currentForecastGroupId !== -1);
 
         var rowClass = "";
         if (isTotalRow === true) { rowClass = "row-total"; }
         else if (isParentCategory === true) { rowClass = "row-category"; }
 
-        var cells = [{ text: label, cls: isIndented ? "indent" : "" }];
+        var cells = [{ text: label, cls: isSubItem ? "indent" : "" }];
         var hasNonZero = false;
         for (var c2 = labelColIdx + 1; c2 < numCols; c2++) {
           var rawCell = r[c2];
@@ -2513,7 +2512,7 @@ function loadForecast() {
           cells.push({ text: txt, cls: n < 0 ? "neg" : "" });
         }
 
-        if (isIndented === true && hasNonZero === false) { continue; }
+        if (isSubItem === true && hasNonZero === false) { continue; }
 
         var rowObj2 = { cells: cells, rowClass: rowClass };
         if (isParentCategory === true) {
@@ -2521,7 +2520,7 @@ function loadForecast() {
           rowObj2.isCategory = true;
           rowObj2.groupId = "fgrp" + currentForecastGroupId;
         }
-        if (isIndented === true && isTotalRow === false) {
+        if (isSubItem === true) {
           rowObj2.isSub = true;
           rowObj2.groupId = "fgrp" + currentForecastGroupId;
         }
