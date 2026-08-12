@@ -263,11 +263,6 @@
 <div id="section-forecast" class="section">
   <div id="forecast-loading" class="loading"><div class="spinner"></div>Loading forecast...</div>
   <div id="forecast-content" style="display:none;">
-    <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
-      <select id="forecast-period-select" onchange="changeForecastPeriod(this.value)" style="font-size:12px;padding:6px 10px;border-radius:6px;border:1px solid #e2e8f0;color:#334155;background:#fff;" disabled>
-        <option>Loading weeks...</option>
-      </select>
-    </div>
     <div class="card"><div class="card-title">Weekly Detail <span id="forecast-tag-debug" style="font-weight:400;color:#94a3b8;font-size:10px;text-transform:none;letter-spacing:normal;"></span></div><div style="overflow-x:auto;"><table class="data-table" id="forecast-table"></table></div></div>
     <div class="card">
       <div class="card-title">Ending Cash Balance</div>
@@ -629,51 +624,6 @@ function changePeriod(newPeriod) {
       document.getElementById("period-label").textContent = "Update failed";
       alert("Could not switch period: " + err.message);
       loadPeriodOptions();
-    });
-}
-
-function loadForecastPeriodOptions() {
-  var sel = document.getElementById("forecast-period-select");
-  if (!sel) { return; }
-  fetchRange("13WK_FORECAST!B4:B4").then(function (curRows) {
-    var currentRaw = (curRows && curRows[3]) ? curRows[3][1] : null;
-    var baseDate = currentRaw ? new Date(currentRaw) : new Date();
-    if (isNaN(baseDate.getTime())) { baseDate = new Date(); }
-
-    var opts = "";
-    for (var i = -8; i <= 12; i++) {
-      var d = new Date(baseDate.getTime());
-      d.setDate(d.getDate() + i * 7);
-      var label = (d.getMonth() + 1) + "/" + d.getDate() + "/" + d.getFullYear();
-      var selAttr = (i === 0) ? " selected" : "";
-      opts += "<option value=\"" + label + "\"" + selAttr + ">" + label + (i === 0 ? " (current)" : "") + "</option>";
-    }
-    sel.innerHTML = opts;
-    sel.disabled = false;
-  }, function () {
-    sel.innerHTML = "<option>Could not load current week</option>";
-  });
-}
-
-function changeForecastPeriod(newVal) {
-  if (!window.PERIOD_UPDATE_URL) {
-    alert("Period switching isn't configured yet. See period-updater.gs for setup instructions, then set window.PERIOD_UPDATE_URL in the dashboard code.");
-    loadForecastPeriodOptions();
-    return;
-  }
-  var sel = document.getElementById("forecast-period-select");
-  sel.disabled = true;
-
-  callPeriodApi(window.PERIOD_UPDATE_URL + "?period=" + encodeURIComponent(newVal) + "&sheet=" + encodeURIComponent("13WK_FORECAST") + "&cell=B4", 2)
-    .then(function () {
-      setTimeout(function () {
-        loadForecast();
-      }, 2500);
-    })
-    .catch(function (err) {
-      sel.disabled = false;
-      alert("Could not switch 13-week period: " + err.message);
-      loadForecastPeriodOptions();
     });
 }
 
@@ -2374,7 +2324,6 @@ function loadCF() {
 function loadForecast() {
   document.getElementById("forecast-loading").style.display = "flex";
   document.getElementById("forecast-content").style.display = "none";
-  loadForecastPeriodOptions();
   return fetchRange("13WK_FORECAST!A1:R45").then(function (rows) {
     try {
       if (!rows || rows.length < 17) {
@@ -2446,19 +2395,28 @@ function loadForecast() {
       }
 
       var tagRow = rows[headerRowIdx - 1] || [];
+      var bestTagMatchCount = -1;
+      for (var tri = Math.max(0, headerRowIdx - 6); tri < headerRowIdx; tri++) {
+        var candidateRow = rows[tri] || [];
+        var matchCount = 0;
+        for (var trc = 0; trc < candidateRow.length; trc++) {
+          var cv = candidateRow[trc];
+          if (cv === undefined || cv === null) { continue; }
+          var cvClean = String(cv).replace(/^\s+|\s+$/g, "").toLowerCase();
+          if (cvClean === "actual" || cvClean === "forecast") { matchCount = matchCount + 1; }
+        }
+        if (matchCount > bestTagMatchCount) {
+          bestTagMatchCount = matchCount;
+          tagRow = candidateRow;
+        }
+      }
+
       var weekStartRow = rows[headerRowIdx + 1] || [];
       var dataStartIdx = headerRowIdx + 3;
+      var forecastTagDebug = "tagRowMatches=[" + bestTagMatchCount + "] tagRowContent=[" + tagRow.slice(0, 8).join("~") + "]";
       var headerRowArr = rows[headerRowIdx] || [];
       var numCols = headerRowArr.length;
       var totalDataCols = numCols - labelColIdx - 1;
-
-      var anchorDateForTags = null;
-      var anchorRaw = (rows[3] || [])[1];
-      if (anchorRaw) {
-        var parsedAnchor = new Date(anchorRaw);
-        if (!isNaN(parsedAnchor.getTime())) { anchorDateForTags = parsedAnchor; }
-      }
-      var forecastTagDebug = "anchorRaw=[" + anchorRaw + "] anchorParsed=[" + (anchorDateForTags ? anchorDateForTags.toString() : "FAILED") + "]";
 
       var colLabels = [];
       var colIndexInData = 0;
@@ -2466,22 +2424,11 @@ function loadForecast() {
         var startTxt = weekStartRow[c];
         if (startTxt === undefined || startTxt === null || startTxt === "") { startTxt = "Wk " + (c - labelColIdx); }
 
+        var tagTxt = tagRow[c];
         var tagClean = "";
-        if (anchorDateForTags && startTxt) {
-          var thisWeekDate = new Date(startTxt);
-          if (!isNaN(thisWeekDate.getTime())) {
-            tagClean = (thisWeekDate.getTime() <= anchorDateForTags.getTime()) ? "Actual" : "Forecast";
-          }
-        }
-        if (tagClean === "") {
-          var tagTxt = tagRow[c];
-          if (tagTxt !== undefined && tagTxt !== null) { tagClean = String(tagTxt).replace(/^\s+|\s+$/g, ""); }
-        }
+        if (tagTxt !== undefined && tagTxt !== null) { tagClean = String(tagTxt).replace(/^\s+|\s+$/g, ""); }
         if (tagClean === "") {
           tagClean = (colIndexInData < 2) ? "Actual" : "Forecast";
-        }
-        if (colIndexInData === 2 || colIndexInData === 3) {
-          forecastTagDebug = forecastTagDebug + " | col" + colIndexInData + " startTxt=[" + startTxt + "] result=[" + tagClean + "]";
         }
 
         var weekLabelClean = "";
@@ -2611,8 +2558,6 @@ function loadAll() {
 
   var periodSel = document.getElementById("period-select");
   if (periodSel) { periodSel.disabled = true; }
-  var forecastSel = document.getElementById("forecast-period-select");
-  if (forecastSel) { forecastSel.disabled = true; }
   var dailyPicker = document.getElementById("pldaily-date-picker");
   if (dailyPicker) { dailyPicker.disabled = true; }
   var dailyStatus = document.getElementById("pldaily-conn-status");
