@@ -1264,6 +1264,7 @@ function normalizePeriod(s) {
 
 function getTxnCache() {
   if (window.txnCache) { return Promise.resolve(window.txnCache); }
+  if (window.txnCachePromise) { return window.txnCachePromise; }
 
   var bestKnownCount = 0;
   try {
@@ -1285,11 +1286,16 @@ function getTxnCache() {
       }
       rememberCount(best.length);
       window.txnCache = best;
+      window.txnCachePromise = null;
       return best;
     });
   }
 
-  return attempt(2, []);
+  window.txnCachePromise = attempt(2, []).catch(function (err) {
+    window.txnCachePromise = null;
+    throw err;
+  });
+  return window.txnCachePromise;
 }
 
 function renderTop3Drivers(allFlags) {
@@ -2465,6 +2471,7 @@ function loadForecast() {
 
 function loadAll() {
   window.txnCache = null;
+  window.txnCachePromise = null;
   document.getElementById("global-error").style.display = "none";
 
   var periodSel = document.getElementById("period-select");
