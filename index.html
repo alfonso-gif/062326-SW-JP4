@@ -2048,7 +2048,8 @@ function getDailyPickerDateStr() {
   return parseInt(parts[1], 10) + "/" + parseInt(parts[2], 10) + "/" + parts[0];
 }
 
-function makeTableWithGroups(el, rows, cols, isDailyTable) {
+function makeTableWithGroups(el, rows, cols, isDailyTable, enableClicks) {
+  var clicksOn = (enableClicks === undefined) ? true : enableClicks;
   if (!el) { return; }
   el.innerHTML = "";
   var thead = document.createElement("thead");
@@ -2066,7 +2067,7 @@ function makeTableWithGroups(el, rows, cols, isDailyTable) {
     var tr = document.createElement("tr");
     if (rowData.rowClass) { tr.className = rowData.rowClass; }
     if (rowData.isCategory) { tr.setAttribute("data-group-toggle", rowData.groupId); }
-    if (rowData.isLeafClickable) {
+    if (rowData.isLeafClickable && clicksOn) {
       tr.className = (tr.className ? tr.className + " " : "") + "pl-clickable";
       tr.setAttribute("data-account-name", rowData.cells[0].text);
       if (isDailyTable) { tr.setAttribute("data-daily-table", "1"); }
@@ -2083,21 +2084,23 @@ function makeTableWithGroups(el, rows, cols, isDailyTable) {
       };
     }
     if (rowData.isSub) {
-      tr.className = (tr.className ? tr.className + " " : "") + "sub-row pl-clickable";
+      tr.className = (tr.className ? tr.className + " " : "") + "sub-row" + (clicksOn ? " pl-clickable" : "");
       tr.setAttribute("data-group", rowData.groupId);
-      tr.setAttribute("data-account-name", rowData.cells[0].text);
-      if (isDailyTable) { tr.setAttribute("data-daily-table", "1"); }
-      if (isDailyTable && rowData.isRevenueSection) { tr.setAttribute("data-revrec", "1"); }
-      tr.onclick = function (ev) {
-        if (ev && ev.stopPropagation) { ev.stopPropagation(); }
-        var acctName = this.getAttribute("data-account-name");
-        if (this.getAttribute("data-revrec")) {
-          openRevRecModal(acctName);
-          return;
-        }
-        var targetDate = this.getAttribute("data-daily-table") ? getDailyPickerDateStr() : null;
-        openTxnModal(acctName, targetDate);
-      };
+      if (clicksOn) {
+        tr.setAttribute("data-account-name", rowData.cells[0].text);
+        if (isDailyTable) { tr.setAttribute("data-daily-table", "1"); }
+        if (isDailyTable && rowData.isRevenueSection) { tr.setAttribute("data-revrec", "1"); }
+        tr.onclick = function (ev) {
+          if (ev && ev.stopPropagation) { ev.stopPropagation(); }
+          var acctName = this.getAttribute("data-account-name");
+          if (this.getAttribute("data-revrec")) {
+            openRevRecModal(acctName);
+            return;
+          }
+          var targetDate = this.getAttribute("data-daily-table") ? getDailyPickerDateStr() : null;
+          openTxnModal(acctName, targetDate);
+        };
+      }
     }
     for (var k = 0; k < rowData.cells.length; k++) {
       var cell = rowData.cells[k];
@@ -2475,6 +2478,7 @@ function loadForecast() {
 
       var endCashRow = null;
       var tableRows = [];
+      var currentForecastGroupId = -1;
 
       for (var i = dataStartIdx; i < rows.length; i++) {
         var r = rows[i];
@@ -2511,12 +2515,33 @@ function loadForecast() {
 
         if (isIndented === true && hasNonZero === false) { continue; }
 
-        tableRows.push({ cells: cells, rowClass: rowClass });
+        var rowObj2 = { cells: cells, rowClass: rowClass };
+        if (isParentCategory === true) {
+          currentForecastGroupId = currentForecastGroupId + 1;
+          rowObj2.isCategory = true;
+          rowObj2.groupId = "fgrp" + currentForecastGroupId;
+        }
+        if (isIndented === true && isTotalRow === false) {
+          rowObj2.isSub = true;
+          rowObj2.groupId = "fgrp" + currentForecastGroupId;
+        }
+        tableRows.push(rowObj2);
 
         if (ll.indexOf("ending cash") !== -1) { endCashRow = r; }
       }
 
-      makeTable(document.getElementById("forecast-table"), tableRows, ["Line Item"].concat(colLabels));
+      var forecastGroupsWithSubs = {};
+      for (var fgi = 0; fgi < tableRows.length; fgi++) {
+        if (tableRows[fgi].isSub) { forecastGroupsWithSubs[tableRows[fgi].groupId] = true; }
+      }
+      for (var fgj = 0; fgj < tableRows.length; fgj++) {
+        if (tableRows[fgj].isCategory && forecastGroupsWithSubs[tableRows[fgj].groupId]) {
+          tableRows[fgj].rowClass = tableRows[fgj].rowClass + " has-subs";
+        }
+      }
+
+      makeTableWithGroups(document.getElementById("forecast-table"), tableRows, ["Line Item"].concat(colLabels), false, false);
+      wirePLToggles("forecast-table");
 
       destroyChart("endcash");
       var endCashLabels = [];
