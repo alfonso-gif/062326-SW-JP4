@@ -534,7 +534,7 @@ function setError(section, msg) {
 window.periodLabels = { cur: "Current", prior: "Prior" };
 
 function loadPeriod() {
-  return fetchRange("PERIOD_CONTROL!A1:D10").then(function (rows) {
+  return getCachedSheet("PERIOD_CONTROL!A1:D10").then(function (rows) {
     var cur = "";
     var prior = "";
     for (var i = 0; i < rows.length; i++) {
@@ -649,7 +649,7 @@ function changePeriod(newPeriod) {
 function loadDailyPeriodPicker() {
   var picker = document.getElementById("pldaily-date-picker");
   if (!picker) { return Promise.resolve(null); }
-  return fetchRange("PERIOD_CONTROL!C4:C4").then(function (rows) {
+  return getCachedSheet("PERIOD_CONTROL!C4:C4").then(function (rows) {
     var raw = (rows && rows[3]) ? rows[3][2] : null;
     var formatted = null;
     if (raw) {
@@ -2583,7 +2583,7 @@ function loadAll() {
   connBar.style.display = "block";
   document.getElementById("conn-status").textContent = "connecting...";
 
-  fetchRange("PERIOD_CONTROL!A1:B5").then(function (testData) {
+  getCachedSheet("PERIOD_CONTROL!A1:B5").then(function (testData) {
     connBar.className = "conn-bar ok";
     document.getElementById("conn-status").textContent = "Connected - " + testData.length + " rows from PERIOD_CONTROL";
     setTimeout(function () { connBar.style.display = "none"; }, 3000);
