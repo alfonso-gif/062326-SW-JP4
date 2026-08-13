@@ -410,6 +410,25 @@ function fetchRange(range) {
   return fetchSheet(sheetName);
 }
 
+window.sheetCache = window.sheetCache || {};
+window.sheetCachePromises = window.sheetCachePromises || {};
+
+function getCachedSheet(range) {
+  var sheetName = range.indexOf("!") !== -1 ? range.split("!")[0] : range;
+  if (window.sheetCache[sheetName]) { return Promise.resolve(window.sheetCache[sheetName]); }
+  if (window.sheetCachePromises[sheetName]) { return window.sheetCachePromises[sheetName]; }
+  var p = fetchRange(range).then(function (rows) {
+    window.sheetCache[sheetName] = rows;
+    window.sheetCachePromises[sheetName] = null;
+    return rows;
+  }, function (err) {
+    window.sheetCachePromises[sheetName] = null;
+    throw err;
+  });
+  window.sheetCachePromises[sheetName] = p;
+  return p;
+}
+
 function numVal(v) {
   if (v === undefined || v === null || v === "") { return 0; }
   var s = String(v);
@@ -897,7 +916,7 @@ function loadRevenueTrend() {
 function loadSummary() {
   document.getElementById("summary-loading").style.display = "flex";
   document.getElementById("summary-content").style.display = "none";
-  return Promise.all([fetchRange("CALC_PL!A1:H80"), fetchRange("CALC_BS!A1:H80"), fetchRange("CALC_CF!A1:H60"), fetchRange("CALC_PL with Sub-accounts!A1:H300")]).then(function (results) {
+  return Promise.all([getCachedSheet("CALC_PL!A1:H80"), getCachedSheet("CALC_BS!A1:H80"), getCachedSheet("CALC_CF!A1:H60"), getCachedSheet("CALC_PL with Sub-accounts!A1:H300")]).then(function (results) {
     var bsRowsRaw = results[1];
     var cfRowsRaw = results[2];
     var pl = parsePLRows(results[0]);
@@ -1651,7 +1670,7 @@ function openKpiModal(key) {
 function loadKPI() {
   document.getElementById("kpi-loading").style.display = "flex";
   document.getElementById("kpi-content").style.display = "none";
-  return Promise.all([fetchRange("CALC_PL!A1:H80"), fetchRange("CALC_BS!A1:H80"), fetchRange("CALC_CF!A1:H60")]).then(function (results) {
+  return Promise.all([getCachedSheet("CALC_PL!A1:H80"), getCachedSheet("CALC_BS!A1:H80"), getCachedSheet("CALC_CF!A1:H60")]).then(function (results) {
     var pl = parsePLRows(results[0]);
     var bsRows = results[1];
     var cfRows = results[2];
@@ -2076,7 +2095,7 @@ function renderPLGeneric(range, section, tableId) {
   var isDaily = (section === "pldaily");
   document.getElementById(section + "-loading").style.display = "flex";
   document.getElementById(section + "-content").style.display = "none";
-  return fetchRange(range).then(function (rows) {
+  return getCachedSheet(range).then(function (rows) {
     var headers = rows[0] || [];
     var periodCur = headers[2] || window.periodLabels.cur || "Current";
     var periodPrv = headers[3] || window.periodLabels.prior || "Prior";
@@ -2242,7 +2261,7 @@ var BANNER_LABELS = { "ASSETS": true, "LIABILITIES": true, "EQUITY": true, "CURR
 function loadBS() {
   document.getElementById("bs-loading").style.display = "flex";
   document.getElementById("bs-content").style.display = "none";
-  return fetchRange("CALC_BS!A1:H80").then(function (rows) {
+  return getCachedSheet("CALC_BS!A1:H80").then(function (rows) {
     var assetRows = [];
     var liabRows = [];
     var section = "";
@@ -2278,7 +2297,7 @@ function loadBS() {
 function loadCF() {
   document.getElementById("cf-loading").style.display = "flex";
   document.getElementById("cf-content").style.display = "none";
-  return fetchRange("CALC_CF!A1:H60").then(function (rows) {
+  return getCachedSheet("CALC_CF!A1:H60").then(function (rows) {
     var tableRows = [];
     var cfLabels = [];
     var cfVals = [];
@@ -2548,6 +2567,8 @@ function loadForecast() {
 function loadAll() {
   window.txnCache = null;
   window.txnCachePromise = null;
+  window.sheetCache = {};
+  window.sheetCachePromises = {};
   document.getElementById("global-error").style.display = "none";
 
   var periodSel = document.getElementById("period-select");
