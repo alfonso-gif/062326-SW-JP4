@@ -150,6 +150,7 @@
     </select>
     <div id="period-label" class="period-badge">Loading period...</div>
     <button class="refresh-btn" onclick="loadAll()">Refresh</button>
+    <button id="refresh-txn-btn" class="refresh-btn" onclick="forceRefreshRawGL()" title="Force a live pull of transaction data, bypassing the cached file">Refresh Transactions</button>
   </div>
 </div>
 
@@ -206,7 +207,7 @@
         </div>
         <div style="margin-top:18px;padding-top:14px;border-top:1px solid #f1f5f9;">
           <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Last 6 Months &mdash; Operating Revenue</div>
-          <table class="data-table" id="rev-trend-table"></table>
+          <table class="data-table" id="rev-trend-table"><tbody><tr><td style="color:#94a3b8;padding:12px;font-size:12px;">Loading transaction data...</td></tr></tbody></table>
         </div>
       </div>
     </div>
@@ -312,6 +313,10 @@ window.SHEET_ID = "1nlDU2Rl6at23As7jZOQEvvRETpbsUOb-3C8v8ylGrxU";
 
 // Paste the Web App URL from your deployed Apps Script here (see period-updater.gs)
 window.PERIOD_UPDATE_URL = "https://script.google.com/macros/s/AKfycbzPgYiugeBKViYztqDIYSx8qmE3WQp58jd2x5jIcjPAnrLU9cXupYx09Hdsa272c6CZ/exec";
+
+// Path to the auto-refreshed transaction cache file (see refresh-raw-gl.yml).
+// Relative path assumes raw_gl_cache.json sits alongside this HTML file in the repo.
+window.RAW_GL_CACHE_URL = "raw_gl_cache.json";
 window.charts = {};
 window.txnCache = null;
 Chart.defaults.color = "#64748b";
@@ -1231,10 +1236,7 @@ function normalizePeriod(s) {
   return lower;
 }
 
-function getTxnCache() {
-  if (window.txnCache) { return Promise.resolve(window.txnCache); }
-  if (window.txnCachePromise) { return window.txnCachePromise; }
-
+function getTxnCacheLive() {
   var bestKnownCount = 0;
   try {
     bestKnownCount = parseInt(localStorage.getItem("rawGLBestRowCount") || "0", 10) || 0;
@@ -1254,18 +1256,82 @@ function getTxnCache() {
         return attempt(triesLeft - 1, best);
       }
       rememberCount(best.length);
-      window.txnCache = best;
-      window.txnCachePromise = null;
       return best;
     });
   }
 
-  window.txnCachePromise = attempt(1, []).catch(function (err) {
+  return attempt(1, []);
+}
+
+function getTxnCache() {
+  if (window.txnCache) { return Promise.resolve(window.txnCache); }
+  if (window.txnCachePromise) { return window.txnCachePromise; }
+
+  var cacheUrl = window.RAW_GL_CACHE_URL || "raw_gl_cache.json";
+
+  var p = fetch(cacheUrl, { cache: "no-store" }).then(function (resp) {
+    if (!resp.ok) { throw new Error("cache file HTTP " + resp.status); }
+    return resp.json();
+  }).then(function (data) {
+    if (data && data.status === "ok" && data.rows && data.rows.length > 1) {
+      window.txnCache = data.rows;
+      window.txnCachePromise = null;
+      return data.rows;
+    }
+    throw new Error("cache file empty or malformed");
+  }).catch(function () {
+    // No cache file yet, or it's stale/broken - fall back to the original live fetch.
+    return getTxnCacheLive().then(function (rows) {
+      window.txnCache = rows;
+      window.txnCachePromise = null;
+      return rows;
+    });
+  }).catch(function (err) {
     window.txnCachePromise = null;
     throw err;
   });
-  return window.txnCachePromise;
+
+  window.txnCachePromise = p;
+  return p;
 }
+
+function forceRefreshRawGL() {
+  var btn = document.getElementById("refresh-txn-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "Refreshing..."; }
+
+  window.txnCache = null;
+  window.txnCachePromise = null;
+
+  var promise;
+  if (window.PERIOD_UPDATE_URL) {
+    promise = fetch(window.PERIOD_UPDATE_URL + "?action=getSheet&name=Raw_GL").then(function (resp) {
+      return resp.json();
+    }).then(function (data) {
+      if (data && data.status === "ok" && data.rows) {
+        window.txnCache = data.rows;
+        return data.rows;
+      }
+      throw new Error((data && data.message) || "Live refresh failed");
+    });
+  } else {
+    promise = getTxnCacheLive().then(function (rows) {
+      window.txnCache = rows;
+      return rows;
+    });
+  }
+
+  promise.then(function () {
+    loadRevenueTrend();
+    loadPeriodOptions();
+    // Re-render Top 3 Variances / Top Variance Alerts with the fresh transaction data
+    loadSummary();
+    if (btn) { btn.disabled = false; btn.textContent = "Refresh Transactions"; }
+  }).catch(function (err) {
+    if (btn) { btn.disabled = false; btn.textContent = "Refresh Transactions"; }
+    alert("Could not refresh transaction data: " + (err && err.message ? err.message : String(err)));
+  });
+}
+
 
 function renderTop3Drivers(allFlags) {
   var container = document.getElementById("top3-drivers");
