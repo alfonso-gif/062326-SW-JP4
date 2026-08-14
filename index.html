@@ -206,7 +206,7 @@
         </div>
         <div style="margin-top:18px;padding-top:14px;border-top:1px solid #f1f5f9;">
           <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Last 6 Months &mdash; Operating Revenue</div>
-          <table class="data-table" id="rev-trend-table"></table>
+          <table class="data-table" id="rev-trend-table"><tbody><tr><td style="color:#94a3b8;padding:12px;font-size:12px;">Loading transaction data...</td></tr></tbody></table>
         </div>
       </div>
     </div>
@@ -2596,7 +2596,6 @@ function loadAll() {
     return Promise.reject(e);
   }).then(function () {
     loadSummary();
-    loadRevenueTrend();
     loadKPI();
     loadPL();
     loadDailyPL();
@@ -2607,6 +2606,7 @@ function loadAll() {
     loadDailyPeriodPicker().then(function () {
       if (dailyStatus) { dailyStatus.style.display = "none"; }
     });
+    loadRevenueTrend();
   }, function () {
     return null;
   });
