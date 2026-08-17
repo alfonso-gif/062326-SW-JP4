@@ -137,6 +137,28 @@
 </head>
 <body>
 
+<div id="login-gate" style="position:fixed;inset:0;background:#f5f6f8;z-index:2000;display:flex;align-items:center;justify-content:center;">
+  <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:32px 30px;width:340px;box-shadow:0 4px 16px rgba(0,0,0,0.06);">
+    <div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:4px;">Kostopoulos Investment Holdings</div>
+    <div style="font-size:11px;color:#64748b;margin-bottom:20px;">StemWave Dashboard &middot; stemwave.com sign-in required</div>
+
+    <div id="login-step-email">
+      <div style="font-size:11px;color:#64748b;margin-bottom:6px;">Work email</div>
+      <input id="login-email-input" type="email" placeholder="you@stemwave.com" onkeydown="if(event.key==='Enter'){requestOtpCode();}" style="width:100%;font-size:13px;padding:9px 10px;border-radius:6px;border:1px solid #e2e8f0;margin-bottom:12px;">
+      <button id="login-send-btn" onclick="requestOtpCode()" style="width:100%;font-size:13px;font-weight:600;padding:9px;border-radius:6px;border:none;background:#0ea5e9;color:#fff;cursor:pointer;">Send code</button>
+    </div>
+
+    <div id="login-step-code" style="display:none;">
+      <div style="font-size:11px;color:#64748b;margin-bottom:6px;">6-digit code sent to <span id="login-code-email"></span></div>
+      <input id="login-code-input" type="text" inputmode="numeric" maxlength="6" placeholder="000000" onkeydown="if(event.key==='Enter'){verifyOtpCode();}" style="width:100%;font-size:16px;letter-spacing:4px;text-align:center;padding:9px 10px;border-radius:6px;border:1px solid #e2e8f0;margin-bottom:12px;">
+      <button id="login-verify-btn" onclick="verifyOtpCode()" style="width:100%;font-size:13px;font-weight:600;padding:9px;border-radius:6px;border:none;background:#0ea5e9;color:#fff;cursor:pointer;margin-bottom:8px;">Verify</button>
+      <button onclick="resetLoginGate()" style="width:100%;font-size:12px;padding:6px;border-radius:6px;border:none;background:none;color:#64748b;cursor:pointer;">Use a different email</button>
+    </div>
+
+    <div id="login-error" style="display:none;color:#dc2626;font-size:12px;margin-top:12px;"></div>
+  </div>
+</div>
+
 <div class="dash-header">
   <div class="header-brand">
     <div>
@@ -2677,8 +2699,127 @@ function loadAll() {
     return null;
   });
 }
+window.AUTH_SESSION_STORAGE_KEY = "stemwaveAuthSession";
+window.AUTH_SESSION_DAYS = 30;
 
-loadAll();
+function showLoginError(msg) {
+  var el = document.getElementById("login-error");
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
+function clearLoginError() {
+  document.getElementById("login-error").style.display = "none";
+}
+
+function requestOtpCode() {
+  clearLoginError();
+  var emailInput = document.getElementById("login-email-input");
+  var email = emailInput.value.replace(/^\s+|\s+$/g, "").toLowerCase();
+
+  if (!email || email.indexOf("@") === -1) {
+    showLoginError("Enter a valid email address.");
+    return;
+  }
+  if (email.split("@")[1] !== "stemwave.com") {
+    showLoginError("Only stemwave.com email addresses are allowed.");
+    return;
+  }
+  if (!window.PERIOD_UPDATE_URL) {
+    showLoginError("Login isn't configured yet - PERIOD_UPDATE_URL is missing.");
+    return;
+  }
+
+  var btn = document.getElementById("login-send-btn");
+  btn.disabled = true;
+  btn.textContent = "Sending...";
+
+  fetch(window.PERIOD_UPDATE_URL + "?action=requestOtp&email=" + encodeURIComponent(email))
+    .then(function (resp) { return resp.json(); })
+    .then(function (data) {
+      btn.disabled = false;
+      btn.textContent = "Send code";
+      if (data && data.status === "ok") {
+        document.getElementById("login-code-email").textContent = email;
+        document.getElementById("login-step-email").style.display = "none";
+        document.getElementById("login-step-code").style.display = "block";
+        window.pendingLoginEmail = email;
+        document.getElementById("login-code-input").focus();
+      } else {
+        showLoginError((data && data.message) || "Could not send code.");
+      }
+    })
+    .catch(function (err) {
+      btn.disabled = false;
+      btn.textContent = "Send code";
+      showLoginError("Network error: " + err.message);
+    });
+}
+
+function verifyOtpCode() {
+  clearLoginError();
+  var code = document.getElementById("login-code-input").value.replace(/^\s+|\s+$/g, "");
+  var email = window.pendingLoginEmail;
+
+  if (!email) { resetLoginGate(); return; }
+  if (!code || code.length !== 6) {
+    showLoginError("Enter the 6-digit code.");
+    return;
+  }
+
+  var btn = document.getElementById("login-verify-btn");
+  btn.disabled = true;
+  btn.textContent = "Verifying...";
+
+  fetch(window.PERIOD_UPDATE_URL + "?action=verifyOtp&email=" + encodeURIComponent(email) + "&code=" + encodeURIComponent(code))
+    .then(function (resp) { return resp.json(); })
+    .then(function (data) {
+      btn.disabled = false;
+      btn.textContent = "Verify";
+      if (data && data.status === "ok") {
+        var expiresAt = new Date().getTime() + (window.AUTH_SESSION_DAYS * 24 * 60 * 60 * 1000);
+        try {
+          localStorage.setItem(window.AUTH_SESSION_STORAGE_KEY, JSON.stringify({ email: email, expiresAt: expiresAt }));
+        } catch (e) { }
+        unlockDashboard();
+      } else {
+        showLoginError((data && data.message) || "Incorrect code.");
+      }
+    })
+    .catch(function (err) {
+      btn.disabled = false;
+      btn.textContent = "Verify";
+      showLoginError("Network error: " + err.message);
+    });
+}
+
+function resetLoginGate() {
+  clearLoginError();
+  window.pendingLoginEmail = null;
+  document.getElementById("login-code-input").value = "";
+  document.getElementById("login-step-code").style.display = "none";
+  document.getElementById("login-step-email").style.display = "block";
+  document.getElementById("login-email-input").focus();
+}
+
+function unlockDashboard() {
+  document.getElementById("login-gate").style.display = "none";
+  loadAll();
+}
+
+function checkStoredSession() {
+  var stored = null;
+  try {
+    stored = JSON.parse(localStorage.getItem(window.AUTH_SESSION_STORAGE_KEY) || "null");
+  } catch (e) { }
+
+  if (stored && stored.expiresAt && new Date().getTime() < stored.expiresAt && String(stored.email || "").split("@")[1] === "stemwave.com") {
+    unlockDashboard();
+  }
+  // Otherwise, leave the login gate visible - it's shown by default.
+}
+
+checkStoredSession();
 </script>
 </body>
 </html>
