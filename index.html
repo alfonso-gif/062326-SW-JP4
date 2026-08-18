@@ -216,7 +216,7 @@
         <div id="top-alerts-legend" style="margin-top:8px;"></div>
       </div>
       <div class="card">
-        <div class="card-title">Top 3 Expenses This Period</div>
+        <div class="card-title">Top 3 Expense Variances This Period</div>
         <div id="top3-drivers">Analyzing key drivers...</div>
       </div>
       <div class="card">
@@ -791,9 +791,14 @@ function parseExecSummaryTop3ExpenseRows(rows) {
     var nameTxt = String(row[22] || "").replace(/^\s+|\s+$/g, "");
     var memoTxt = String(row[23] || "").replace(/^\s+|\s+$/g, "");
     var amtRaw = row[24];
-    var amtEmpty = (amtRaw === undefined || amtRaw === null || String(amtRaw).replace(/^\s+|\s+$/g, "") === "");
+    var amtEmpty = (amtRaw === undefined || amtRaw === null || String(amtRaw).replace(/^\s+|\s+$/g, "") === "" || numVal(amtRaw) === 0);
 
-    var isHeaderRow = docTxt !== "" && dateTxt === "" && typeTxt === "" && amtEmpty;
+    if (docTxt === "") { continue; }
+
+    var isColumnSubHeader = docTxt.toLowerCase() === "doc #" || docTxt.toLowerCase() === "doc#";
+    if (isColumnSubHeader) { continue; }
+
+    var isHeaderRow = amtEmpty;
     if (isHeaderRow) {
       allHeadersFound.push("row" + (j + 1) + "=[" + docTxt + "]");
       currentItem = null;
@@ -803,10 +808,7 @@ function parseExecSummaryTop3ExpenseRows(rows) {
       continue;
     }
 
-    var isColumnHeaderRow = docTxt.toLowerCase() === "doc #" || docTxt.toLowerCase() === "doc#" || dateTxt.toLowerCase() === "date" || typeTxt.toLowerCase() === "type";
-    if (isColumnHeaderRow) { continue; }
-
-    if (currentItem && docTxt !== "") {
+    if (currentItem) {
       currentItem.transactions.push({
         docnum: docTxt, date: dateTxt, type: typeTxt, name: nameTxt, memo: memoTxt, amount: numVal(amtRaw)
       });
