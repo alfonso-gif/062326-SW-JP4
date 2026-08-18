@@ -439,11 +439,26 @@ function fetchRange(range) {
 window.sheetCache = window.sheetCache || {};
 window.sheetCachePromises = window.sheetCachePromises || {};
 
+var GVIZ_BYPASS_SHEETS = { "PERIOD_CONTROL": true };
+
+function fetchSheetViaAppsScript(sheetName) {
+  if (!window.PERIOD_UPDATE_URL) {
+    return Promise.reject(new Error("PERIOD_UPDATE_URL not configured, can't bypass gviz for " + sheetName));
+  }
+  return fetch(window.PERIOD_UPDATE_URL + "?action=getSheet&name=" + encodeURIComponent(sheetName)).then(function (resp) {
+    return resp.json();
+  }).then(function (data) {
+    if (data && data.status === "ok" && data.rows) { return data.rows; }
+    throw new Error((data && data.message) || "Could not load " + sheetName + " via Apps Script");
+  });
+}
+
 function getCachedSheet(range) {
   var sheetName = range.indexOf("!") !== -1 ? range.split("!")[0] : range;
   if (window.sheetCache[sheetName]) { return Promise.resolve(window.sheetCache[sheetName]); }
   if (window.sheetCachePromises[sheetName]) { return window.sheetCachePromises[sheetName]; }
-  var p = fetchRange(range).then(function (rows) {
+  var fetchPromise = GVIZ_BYPASS_SHEETS[sheetName] ? fetchSheetViaAppsScript(sheetName) : fetchRange(range);
+  var p = fetchPromise.then(function (rows) {
     window.sheetCache[sheetName] = rows;
     window.sheetCachePromises[sheetName] = null;
     return rows;
@@ -657,7 +672,7 @@ function changePeriod(newPeriod) {
       setTimeout(function () {
         window.txnCache = null;
         loadAll();
-      }, 12000);
+      }, 3000);
     })
     .catch(function (err) {
       sel.disabled = false;
@@ -725,7 +740,7 @@ function changeDailyPeriod(dateVal) {
       setTimeout(function () {
         window.txnCache = null;
         loadAll();
-      }, 12000);
+      }, 3000);
     })
     .catch(function (err) {
       picker.disabled = false;
