@@ -1381,6 +1381,23 @@ function getMonthlyTxnCache() {
   return p;
 }
 
+function getDailyTxnCache() {
+  if (window.dailyTxnCache) { return Promise.resolve(window.dailyTxnCache); }
+  if (window.dailyTxnCachePromise) { return window.dailyTxnCachePromise; }
+
+  var p = fetchRange("Raw_GL_Daily!A1:M20000").then(function (rows) {
+    window.dailyTxnCache = rows;
+    window.dailyTxnCachePromise = null;
+    return rows;
+  }).catch(function (err) {
+    window.dailyTxnCachePromise = null;
+    throw err;
+  });
+
+  window.dailyTxnCachePromise = p;
+  return p;
+}
+
 function forceRefreshRawGL() {
   var btn = document.getElementById("refresh-txn-btn");
   if (btn) { btn.disabled = true; btn.textContent = "Refreshing..."; }
@@ -1578,7 +1595,7 @@ function openTxnModal(accountName, exactDate) {
   }
 
   var isDailyModeForFetch = !!exactDate;
-  var txnFetchPromise = isDailyModeForFetch ? getTxnCache() : getMonthlyTxnCache();
+  var txnFetchPromise = isDailyModeForFetch ? getDailyTxnCache() : getMonthlyTxnCache();
 
   txnFetchPromise.then(function (rows) {
     var headerRow = rows[0] || [];
@@ -1694,7 +1711,7 @@ function openTxnModal(accountName, exactDate) {
       for (var fc = 0; fc < sampleRow.length; fc++) {
         fullRowDump.push(fc + "=[" + String(sampleRow[fc] || "") + "]");
       }
-      var diag = "Searched " + (rows.length - 1) + " total rows in " + (isDailyModeForFetch ? "Raw_GL" : "Raw_GL_Selected_Period") + ". " +
+      var diag = "Searched " + (rows.length - 1) + " total rows in " + (isDailyModeForFetch ? "Raw_GL_Daily" : "Raw_GL_Selected_Period") + ". " +
         acctOnlyCount + " row(s) matched account \"" + accountName + "\" (any " + (isDailyMode ? "date" : "period") + "). " +
         periodOnlyCount + " row(s) matched " + (isDailyMode ? ("date range \"" + rangeLabel + "\"") : ("period \"" + targetPeriod + "\"")) + " (any account). " +
         "Values similar to \"" + accountName + "\": " + JSON.stringify(fuzzyVals) + ". " +
