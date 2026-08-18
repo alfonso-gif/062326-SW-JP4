@@ -216,7 +216,7 @@
         <div id="top-alerts-legend" style="margin-top:8px;"></div>
       </div>
       <div class="card">
-        <div class="card-title">Top 3 Variances This Period</div>
+        <div class="card-title">Top 3 Expenses This Period</div>
         <div id="top3-drivers">Analyzing key drivers...</div>
       </div>
       <div class="card">
@@ -746,6 +746,88 @@ var EXPENSE_LINES = {
   "Depreciation & Amortization": true, "Other Expense": true, "Income Tax Expense": true
 };
 
+var REVENUE_SUBACCOUNTS = {
+  "Devices": true, "StemWave Store": true, "Platinum Provider Program": true, "Repairs": true,
+  "Referral Fee": true, "Referral Commission": true, "Shipping Income": true, "Interest Income": true,
+  "Warranty": true, "Training Income": true, "Operating Revenue": true, "Discounts & Refunds": true
+};
+
+// Column layout of the "Executive Summary" tab, 0-indexed (A=0, B=1, ... G=6, N=13, T=19, AA=26)
+function parseExecSummaryAlertRows(rows) {
+  var out = [];
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i];
+    if (!r) { continue; }
+    var label = String(r[6] || "").replace(/^\s+|\s+$/g, "");
+    if (!label) { continue; }
+    out.push({
+      label: label,
+      varD: numVal(r[7]),
+      varP: numVal(r[8]),
+      cur: numVal(r[9]),
+      prv: numVal(r[10]),
+      isExpense: REVENUE_SUBACCOUNTS[label] !== true
+    });
+  }
+  return out;
+}
+
+function parseExecSummaryTop3ExpenseRows(rows) {
+  var items = [];
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i];
+    if (!r) { continue; }
+    var label = String(r[13] || "").replace(/^\s+|\s+$/g, "");
+    if (!label) { continue; }
+    items.push({
+      label: label, varD: numVal(r[14]), varP: numVal(r[15]), cur: numVal(r[16]), prv: numVal(r[17]),
+      isExpense: true, transactions: []
+    });
+  }
+
+  var currentItem = null;
+  for (var j = 0; j < rows.length; j++) {
+    var row = rows[j];
+    if (!row) { continue; }
+    var docTxt = String(row[19] || "").replace(/^\s+|\s+$/g, "");
+    var dateTxt = String(row[20] || "").replace(/^\s+|\s+$/g, "");
+    var typeTxt = String(row[21] || "").replace(/^\s+|\s+$/g, "");
+    var nameTxt = String(row[22] || "").replace(/^\s+|\s+$/g, "");
+    var memoTxt = String(row[23] || "").replace(/^\s+|\s+$/g, "");
+    var amtRaw = row[24];
+    var amtEmpty = (amtRaw === undefined || amtRaw === null || String(amtRaw).replace(/^\s+|\s+$/g, "") === "");
+
+    var isHeaderRow = docTxt !== "" && dateTxt === "" && typeTxt === "" && amtEmpty;
+    if (isHeaderRow) {
+      currentItem = null;
+      for (var k = 0; k < items.length; k++) {
+        if (items[k].label.toLowerCase() === docTxt.toLowerCase()) { currentItem = items[k]; break; }
+      }
+      continue;
+    }
+
+    if (currentItem && docTxt !== "") {
+      currentItem.transactions.push({
+        docnum: docTxt, date: dateTxt, type: typeTxt, name: nameTxt, memo: memoTxt, amount: numVal(amtRaw)
+      });
+    }
+  }
+
+  return items;
+}
+
+function parseExecSummaryRevenueTrendRows(rows) {
+  var out = [];
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i];
+    if (!r) { continue; }
+    var month = String(r[26] || "").replace(/^\s+|\s+$/g, "");
+    if (!month) { continue; }
+    out.push({ label: month, total: numVal(r[27]) });
+  }
+  return out;
+}
+
 var SUMMARY_METRIC_LABELS = {
   "GROSS PROFIT": true, "EBITDA": true, "EBIT": true, "NET INCOME": true,
   "TOTAL NET REVENUE": true, "TOTAL OPERATING EXPENSES": true, "INCOME BEFORE TAX": true,
@@ -886,42 +968,9 @@ function renderNarrativeHtml(text) {
 function loadRevenueTrend() {
   var tbl = document.getElementById("rev-trend-table");
   if (!tbl) { return; }
-  var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-  getTxnCache().then(function (rows) {
-    var headerRow = rows[0] || [];
-    var colIdx = { date: 0, account: 5, amount: 7 };
-    for (var hc = 0; hc < headerRow.length; hc++) {
-      var h = String(headerRow[hc] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
-      if (h === "date") { colIdx.date = hc; }
-      if (h === "account") { colIdx.account = hc; }
-      if (h === "amount") { colIdx.amount = hc; }
-    }
-
-    var curDate = new Date((window.periodLabels.cur || "") + " 1");
-    if (isNaN(curDate.getTime())) { curDate = new Date(); }
-
-    var months = [];
-    for (var m = 5; m >= 0; m--) {
-      var d = new Date(curDate.getFullYear(), curDate.getMonth() - m, 1);
-      months.push({ year: d.getFullYear(), month: d.getMonth(), label: monthNames[d.getMonth()] + " " + d.getFullYear(), total: 0 });
-    }
-
-    for (var i = 1; i < rows.length; i++) {
-      var r = rows[i];
-      if (!r) { continue; }
-      var acctTxt = String(r[colIdx.account] || "").toLowerCase();
-      if (acctTxt.indexOf("operating revenue") === -1) { continue; }
-      var rowDate = new Date(r[colIdx.date]);
-      if (isNaN(rowDate.getTime())) { continue; }
-      var amt = numVal(r[colIdx.amount]);
-      for (var mi = 0; mi < months.length; mi++) {
-        if (rowDate.getFullYear() === months[mi].year && rowDate.getMonth() === months[mi].month) {
-          months[mi].total = months[mi].total + amt;
-          break;
-        }
-      }
-    }
+  getCachedSheet("Executive Summary!A1:AB60").then(function (rows) {
+    var months = parseExecSummaryRevenueTrendRows(rows);
 
     var tableRows = [];
     for (var j = 0; j < months.length; j++) {
@@ -942,7 +991,7 @@ function loadRevenueTrend() {
 function loadSummary() {
   document.getElementById("summary-loading").style.display = "flex";
   document.getElementById("summary-content").style.display = "none";
-  return Promise.all([getCachedSheet("CALC_PL!A1:H80"), getCachedSheet("CALC_BS!A1:H80"), getCachedSheet("CALC_CF!A1:H60"), getCachedSheet("CALC_PL with Sub-accounts!A1:H300")]).then(function (results) {
+  return Promise.all([getCachedSheet("CALC_PL!A1:H80"), getCachedSheet("CALC_BS!A1:H80"), getCachedSheet("CALC_CF!A1:H60"), getCachedSheet("Executive Summary!A1:AB60")]).then(function (results) {
     var bsRowsRaw = results[1];
     var cfRowsRaw = results[2];
     var pl = parsePLRows(results[0]);
@@ -1004,19 +1053,11 @@ function loadSummary() {
       grid.appendChild(div);
     }
 
-    var flags = [];
-    var plWithSubInfo = parsePLRowsWithSubInfo(results[3]);
-    for (var f = 0; f < plWithSubInfo.length; f++) {
-      var row = plWithSubInfo[f];
-      if (row.type === "grp") { continue; }
-      if (row.isPct) { continue; }
-      if (SUMMARY_METRIC_LABELS[row.label.toUpperCase()]) { continue; }
-      if (row.type === "cat" && row.hasSubs) { continue; }
-      if (Math.abs(row.varP) >= 5 && Math.abs(row.varD) >= 10000) { flags.push(row); }
-    }
-    flags.sort(function (a, b) { return Math.abs(b.varP) - Math.abs(a.varP); });
+    var execRows = results[3];
+    var flags = parseExecSummaryAlertRows(execRows);
     var topFlags = flags.slice(0, 6);
     renderAlertsPie(flags);
+    var top3ExpenseItems = parseExecSummaryTop3ExpenseRows(execRows);
 
     destroyChart("rev");
     window.charts.rev = new Chart(document.getElementById("rev-chart"), {
@@ -1059,7 +1100,7 @@ function loadSummary() {
     };
 
     generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx, kpiCtx, flags);
-    renderTop3Drivers(flags);
+    renderTop3Drivers(top3ExpenseItems);
     setLoaded("summary");
   }, function (e) {
     setError("summary", "Could not load summary: " + e.message);
@@ -1354,82 +1395,46 @@ function forceRefreshRawGL() {
 }
 
 
-function renderTop3Drivers(allFlags) {
+function renderTop3Drivers(topVariances) {
   var container = document.getElementById("top3-drivers");
-  var topVariances = allFlags.slice(0, 3);
 
   if (!topVariances || topVariances.length === 0) {
     container.innerHTML = "<div style=\"color:#64748b;font-size:12px;padding:8px 0;\">No major account-level variances to highlight this period.</div>";
     return;
   }
 
-  container.innerHTML = "<div style=\"color:#64748b;font-size:12px;padding:8px 0;\">Analyzing underlying transactions...</div>";
   window.top3TxnCache = {};
+  var html = "";
 
-  getTxnCache().then(function (rows) {
-    var headerRow = rows[0] || [];
-    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctname: 12 };
-    for (var hc = 0; hc < headerRow.length; hc++) {
-      var h = String(headerRow[hc] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
-      if (h === "date") { colIdx.date = hc; }
-      if (h === "period") { colIdx.period = hc; }
-      if (h === "type") { colIdx.type = hc; }
-      if (h.indexOf("document") !== -1) { colIdx.docnum = hc; }
-      if (h === "name") { colIdx.name = hc; }
-      if (h === "memo") { colIdx.memo = hc; }
-      if (h === "amount") { colIdx.amount = hc; }
-      if (h.indexOf("account name") !== -1 || h.indexOf("subaccount") !== -1 || h.indexOf("sub account") !== -1 || h.indexOf("sub-account") !== -1) { colIdx.acctname = hc; }
-    }
+  for (var v = 0; v < topVariances.length; v++) {
+    var variance = topVariances[v];
+    var top2 = (variance.transactions || []).slice(0, 2);
+    window.top3TxnCache[v] = top2;
 
-    var targetPeriod = window.periodLabels.cur;
-    var html = "";
+    var cls = favClass(variance.varD, variance.label, variance.isExpense);
+    var sev = Math.abs(variance.varP) >= 40 ? "red" : (Math.abs(variance.varP) >= 15 ? "amber" : "green");
 
-    for (var v = 0; v < topVariances.length; v++) {
-      var variance = topVariances[v];
-      var matches = [];
-      for (var i = 1; i < rows.length; i++) {
-        var r = rows[i];
-        if (!r) { continue; }
-        var acctName = String(r[colIdx.acctname] || "").replace(/^\s+|\s+$/g, "");
-        if (acctName.toLowerCase() !== variance.label.toLowerCase()) { continue; }
-        var periodTxt = String(r[colIdx.period] || "").replace(/^\s+|\s+$/g, "");
-        if (normalizePeriod(periodTxt) !== normalizePeriod(targetPeriod)) { continue; }
-        var amt = numVal(r[colIdx.amount]);
-        if (amt === 0) { continue; }
-        matches.push({ name: r[colIdx.name] || "", amount: amt, docnum: r[colIdx.docnum] || "", date: r[colIdx.date] || "", type: r[colIdx.type] || "", memo: r[colIdx.memo] || "" });
+    html += "<div style=\"margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #f1f5f9;\">";
+    html += "<div style=\"display:flex;align-items:center;gap:8px;margin-bottom:6px;\">";
+    html += "<div class=\"alert-dot dot-" + sev + "\"></div>";
+    html += "<div style=\"font-weight:700;font-size:13px;color:#0f172a;\">" + (v + 1) + ". " + variance.label + "</div>";
+    html += "</div>";
+    html += "<div style=\"margin-bottom:6px;\"><span style=\"font-size:11px;color:#94a3b8;\">MoM Variance: </span><span class=\"" + cls + "\" style=\"font-size:12px;font-weight:600;\">" + fmtMoney(variance.varD) + " (" + (variance.varP > 0 ? "+" : "") + variance.varP.toFixed(1) + "%)</span></div>";
+    html += "<div style=\"font-size:11px;color:#94a3b8;margin-bottom:6px;\">" + window.periodLabels.cur + ": " + fmtMoney(variance.cur) + " vs " + window.periodLabels.prior + ": " + fmtMoney(variance.prv) + "</div>";
+
+    if (top2.length === 0) {
+      html += "<div style=\"font-size:11px;color:#94a3b8;\">No individual transactions found for " + window.periodLabels.cur + " (may be a recurring/accrual entry).</div>";
+    } else {
+      html += "<div style=\"font-size:11px;color:#64748b;\">Largest contributing transaction" + (top2.length > 1 ? "s" : "") + ":</div>";
+      for (var t = 0; t < top2.length; t++) {
+        var tx = top2[t];
+        html += "<div onclick=\"openSingleTxnModal(" + v + "," + t + ")\" style=\"font-size:12px;color:#334155;margin-top:3px;cursor:pointer;\" onmouseover=\"this.style.color='#0369a1';this.style.textDecoration='underline';\" onmouseout=\"this.style.color='#334155';this.style.textDecoration='none';\" title=\"Click for transaction detail\">&bull; " + fmtMoney(tx.amount) + " \u2014 " + tx.name + (tx.docnum ? " (" + tx.docnum + ")" : "") + (tx.date ? ", " + tx.date : "") + "</div>";
       }
-
-      matches.sort(function (a, b) { return Math.abs(b.amount) - Math.abs(a.amount); });
-      var top2 = matches.slice(0, 2);
-      window.top3TxnCache[v] = top2;
-
-      var cls = favClass(variance.varD, variance.label, variance.isExpense);
-      var sev = Math.abs(variance.varP) >= 40 ? "red" : (Math.abs(variance.varP) >= 15 ? "amber" : "green");
-
-      html += "<div style=\"margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #f1f5f9;\">";
-      html += "<div style=\"display:flex;align-items:center;gap:8px;margin-bottom:6px;\">";
-      html += "<div class=\"alert-dot dot-" + sev + "\"></div>";
-      html += "<div style=\"font-weight:700;font-size:13px;color:#0f172a;\">" + (v + 1) + ". " + variance.label + "</div>";
-      html += "</div>";
-      html += "<div style=\"margin-bottom:6px;\"><span style=\"font-size:11px;color:#94a3b8;\">MoM Variance: </span><span class=\"" + cls + "\" style=\"font-size:12px;font-weight:600;\">" + fmtMoney(variance.varD) + " (" + (variance.varP > 0 ? "+" : "") + variance.varP.toFixed(1) + "%)</span></div>";
-      html += "<div style=\"font-size:11px;color:#94a3b8;margin-bottom:6px;\">" + window.periodLabels.cur + ": " + fmtMoney(variance.cur) + " vs " + window.periodLabels.prior + ": " + fmtMoney(variance.prv) + "</div>";
-
-      if (top2.length === 0) {
-        html += "<div style=\"font-size:11px;color:#94a3b8;\">No individual transactions found for " + targetPeriod + " (may be a recurring/accrual entry).</div>";
-      } else {
-        html += "<div style=\"font-size:11px;color:#64748b;\">Largest contributing transaction" + (top2.length > 1 ? "s" : "") + ":</div>";
-        for (var t = 0; t < top2.length; t++) {
-          var tx = top2[t];
-          html += "<div onclick=\"openSingleTxnModal(" + v + "," + t + ")\" style=\"font-size:12px;color:#334155;margin-top:3px;cursor:pointer;\" onmouseover=\"this.style.color='#0369a1';this.style.textDecoration='underline';\" onmouseout=\"this.style.color='#334155';this.style.textDecoration='none';\" title=\"Click for transaction detail\">&bull; " + fmtMoney(tx.amount) + " \u2014 " + tx.name + (tx.docnum ? " (" + tx.docnum + ")" : "") + (tx.date ? ", " + tx.date : "") + "</div>";
-        }
-      }
-      html += "</div>";
     }
+    html += "</div>";
+  }
 
-    container.innerHTML = html;
-  }, function (e) {
-    container.innerHTML = "<div style=\"color:#dc2626;font-size:12px;\">Could not load transaction detail: " + e.message + "</div>";
-  });
+  container.innerHTML = html;
 }
 
 function openSingleTxnModal(v, t) {
