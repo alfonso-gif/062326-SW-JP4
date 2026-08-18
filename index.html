@@ -1582,14 +1582,14 @@ function openTxnModal(accountName, exactDate) {
 
   txnFetchPromise.then(function (rows) {
     var headerRow = rows[0] || [];
-    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctnum: 10, acctname: 12 };
+    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 15, account: 5, memo: 6, amount: 7, acctnum: 10, acctname: 12 };
     for (var hc = 0; hc < headerRow.length; hc++) {
       var h = String(headerRow[hc] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
       if (h === "date") { colIdx.date = hc; }
       if (h === "period") { colIdx.period = hc; }
       if (h === "type") { colIdx.type = hc; }
       if (h.indexOf("document") !== -1) { colIdx.docnum = hc; }
-      if (h === "name") { colIdx.name = hc; }
+      if (h.indexOf("customer/vendor") !== -1 || h.indexOf("customer / vendor") !== -1) { colIdx.name = hc; }
       if (h === "account") { colIdx.account = hc; }
       if (h === "memo") { colIdx.memo = hc; }
       if (h === "amount") { colIdx.amount = hc; }
