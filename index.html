@@ -780,6 +780,7 @@ function parseExecSummaryTop3ExpenseRows(rows) {
     });
   }
 
+  var allHeadersFound = [];
   var currentItem = null;
   for (var j = 0; j < rows.length; j++) {
     var row = rows[j];
@@ -794,6 +795,7 @@ function parseExecSummaryTop3ExpenseRows(rows) {
 
     var isHeaderRow = docTxt !== "" && dateTxt === "" && typeTxt === "" && amtEmpty;
     if (isHeaderRow) {
+      allHeadersFound.push("row" + (j + 1) + "=[" + docTxt + "]");
       currentItem = null;
       for (var k = 0; k < items.length; k++) {
         if (items[k].label.toLowerCase() === docTxt.toLowerCase()) { currentItem = items[k]; break; }
@@ -809,6 +811,11 @@ function parseExecSummaryTop3ExpenseRows(rows) {
         docnum: docTxt, date: dateTxt, type: typeTxt, name: nameTxt, memo: memoTxt, amount: numVal(amtRaw)
       });
     }
+  }
+
+  for (var m = 0; m < items.length; m++) {
+    items[m].debugHeadersFound = allHeadersFound;
+    items[m].debugTotalRows = rows.length;
   }
 
   return items;
@@ -1421,7 +1428,7 @@ function renderTop3Drivers(topVariances) {
     html += "<div style=\"font-size:11px;color:#94a3b8;margin-bottom:6px;\">" + window.periodLabels.cur + ": " + fmtMoney(variance.cur) + " vs " + window.periodLabels.prior + ": " + fmtMoney(variance.prv) + "</div>";
 
     if (top2.length === 0) {
-      html += "<div style=\"font-size:11px;color:#94a3b8;\">No individual transactions found for " + window.periodLabels.cur + " (may be a recurring/accrual entry).</div>";
+      html += "<div style=\"font-size:11px;color:#94a3b8;\">No individual transactions found for " + window.periodLabels.cur + ".<br>Looking for header: [" + variance.label + "]<br>Headers actually found in T:Y: " + JSON.stringify(variance.debugHeadersFound || []) + "<br>Total rows scanned: " + variance.debugTotalRows + "</div>";
     } else {
       html += "<div style=\"font-size:11px;color:#64748b;\">Largest contributing transaction" + (top2.length > 1 ? "s" : "") + ":</div>";
       for (var t = 0; t < top2.length; t++) {
