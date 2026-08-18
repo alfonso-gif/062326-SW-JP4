@@ -593,12 +593,17 @@ function loadPeriod() {
 
 function loadPeriodOptions() {
   var sel = document.getElementById("period-select");
+  var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   getCachedSheet("PERIOD_CONTROL!B11:B1000").then(function (rows) {
     var seen = {};
     var periods = [];
     for (var i = 10; i < rows.length; i++) {
-      var p = String((rows[i] || [])[1] || "").replace(/^\s+|\s+$/g, "");
-      if (p && !seen[p]) { seen[p] = true; periods.push(p); }
+      var raw = String((rows[i] || [])[1] || "").replace(/^\s+|\s+$/g, "");
+      if (!raw) { continue; }
+      var p = raw;
+      var d = new Date(raw);
+      if (!isNaN(d.getTime())) { p = monthNames[d.getMonth()] + " " + d.getFullYear(); }
+      if (!seen[p]) { seen[p] = true; periods.push(p); }
     }
     periods.sort(function (a, b) {
       var da = new Date(a + " 1");
