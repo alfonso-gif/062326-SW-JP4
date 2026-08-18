@@ -1364,6 +1364,23 @@ function getTxnCache() {
   return p;
 }
 
+function getMonthlyTxnCache() {
+  if (window.monthlyTxnCache) { return Promise.resolve(window.monthlyTxnCache); }
+  if (window.monthlyTxnCachePromise) { return window.monthlyTxnCachePromise; }
+
+  var p = fetchRange("Raw_GL_Selected_Period!A1:M20000").then(function (rows) {
+    window.monthlyTxnCache = rows;
+    window.monthlyTxnCachePromise = null;
+    return rows;
+  }).catch(function (err) {
+    window.monthlyTxnCachePromise = null;
+    throw err;
+  });
+
+  window.monthlyTxnCachePromise = p;
+  return p;
+}
+
 function forceRefreshRawGL() {
   var btn = document.getElementById("refresh-txn-btn");
   if (btn) { btn.disabled = true; btn.textContent = "Refreshing..."; }
@@ -1560,7 +1577,10 @@ function openTxnModal(accountName, exactDate) {
     return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
   }
 
-  getTxnCache().then(function (rows) {
+  var isDailyModeForFetch = !!exactDate;
+  var txnFetchPromise = isDailyModeForFetch ? getTxnCache() : getMonthlyTxnCache();
+
+  txnFetchPromise.then(function (rows) {
     var headerRow = rows[0] || [];
     var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 4, account: 5, memo: 6, amount: 7, acctnum: 10, acctname: 12 };
     for (var hc = 0; hc < headerRow.length; hc++) {
@@ -1674,7 +1694,7 @@ function openTxnModal(accountName, exactDate) {
       for (var fc = 0; fc < sampleRow.length; fc++) {
         fullRowDump.push(fc + "=[" + String(sampleRow[fc] || "") + "]");
       }
-      var diag = "Searched " + (rows.length - 1) + " total rows in Raw_GL. " +
+      var diag = "Searched " + (rows.length - 1) + " total rows in " + (isDailyModeForFetch ? "Raw_GL" : "Raw_GL_Selected_Period") + ". " +
         acctOnlyCount + " row(s) matched account \"" + accountName + "\" (any " + (isDailyMode ? "date" : "period") + "). " +
         periodOnlyCount + " row(s) matched " + (isDailyMode ? ("date range \"" + rangeLabel + "\"") : ("period \"" + targetPeriod + "\"")) + " (any account). " +
         "Values similar to \"" + accountName + "\": " + JSON.stringify(fuzzyVals) + ". " +
