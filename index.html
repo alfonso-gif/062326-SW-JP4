@@ -578,16 +578,11 @@ function loadPeriod() {
 
 function loadPeriodOptions() {
   var sel = document.getElementById("period-select");
-  getTxnCache().then(function (rows) {
-    var headerRow = rows[0] || [];
-    var periodCol = 1;
-    for (var hc = 0; hc < headerRow.length; hc++) {
-      if (String(headerRow[hc] || "").replace(/^\s+|\s+$/g, "").toLowerCase() === "period") { periodCol = hc; }
-    }
+  getCachedSheet("PERIOD_CONTROL!B11:B1000").then(function (rows) {
     var seen = {};
     var periods = [];
-    for (var i = 1; i < rows.length; i++) {
-      var p = String((rows[i] || [])[periodCol] || "").replace(/^\s+|\s+$/g, "");
+    for (var i = 10; i < rows.length; i++) {
+      var p = String((rows[i] || [])[1] || "").replace(/^\s+|\s+$/g, "");
       if (p && !seen[p]) { seen[p] = true; periods.push(p); }
     }
     periods.sort(function (a, b) {
@@ -2709,7 +2704,7 @@ function loadAll(preserveTxnCache) {
   });
 }
 window.AUTH_SESSION_STORAGE_KEY = "stemwaveAuthSession";
-window.AUTH_SESSION_DAYS = 30;
+window.AUTH_SESSION_DAYS = 2;
 
 function showLoginError(msg) {
   var el = document.getElementById("login-error");
