@@ -806,6 +806,9 @@ function parseExecSummaryTop3ExpenseRows(rows) {
       continue;
     }
 
+    var isColumnHeaderRow = docTxt.toLowerCase() === "doc #" || docTxt.toLowerCase() === "doc#" || dateTxt.toLowerCase() === "date" || typeTxt.toLowerCase() === "type";
+    if (isColumnHeaderRow) { continue; }
+
     if (currentItem && docTxt !== "") {
       currentItem.transactions.push({
         docnum: docTxt, date: dateTxt, type: typeTxt, name: nameTxt, memo: memoTxt, amount: numVal(amtRaw)
