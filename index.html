@@ -2153,6 +2153,10 @@ function getDailyPickerDateStr() {
   return parseInt(parts[1], 10) + "/" + parseInt(parts[2], 10) + "/" + parts[0];
 }
 
+var REVREC_EXCLUDED_LABELS = {
+  "discounts & refunds": true
+};
+
 function makeTableWithGroups(el, rows, cols, isDailyTable, enableClicks) {
   var clicksOn = (enableClicks === undefined) ? true : enableClicks;
   if (!el) { return; }
@@ -2176,7 +2180,7 @@ function makeTableWithGroups(el, rows, cols, isDailyTable, enableClicks) {
       tr.className = (tr.className ? tr.className + " " : "") + "pl-clickable";
       tr.setAttribute("data-account-name", rowData.cells[0].text);
       if (isDailyTable) { tr.setAttribute("data-daily-table", "1"); }
-      if (isDailyTable && rowData.isRevenueSection) { tr.setAttribute("data-revrec", "1"); }
+      if (isDailyTable && rowData.isRevenueSection && !REVREC_EXCLUDED_LABELS[rowData.cells[0].text.toLowerCase()]) { tr.setAttribute("data-revrec", "1"); }
       tr.onclick = function (ev) {
         if (ev && ev.stopPropagation) { ev.stopPropagation(); }
         var acctName = this.getAttribute("data-account-name");
@@ -2194,7 +2198,7 @@ function makeTableWithGroups(el, rows, cols, isDailyTable, enableClicks) {
       if (clicksOn) {
         tr.setAttribute("data-account-name", rowData.cells[0].text);
         if (isDailyTable) { tr.setAttribute("data-daily-table", "1"); }
-        if (isDailyTable && rowData.isRevenueSection) { tr.setAttribute("data-revrec", "1"); }
+        if (isDailyTable && rowData.isRevenueSection && !REVREC_EXCLUDED_LABELS[rowData.cells[0].text.toLowerCase()]) { tr.setAttribute("data-revrec", "1"); }
         tr.onclick = function (ev) {
           if (ev && ev.stopPropagation) { ev.stopPropagation(); }
           var acctName = this.getAttribute("data-account-name");
