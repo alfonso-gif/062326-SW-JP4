@@ -2699,32 +2699,33 @@ function loadAll(preserveTxnCache) {
   connBar.style.display = "block";
   document.getElementById("conn-status").textContent = "connecting...";
 
-  getCachedSheet("PERIOD_CONTROL!A1:B5").then(function (testData) {
+  // Everything below is independent of PERIOD_CONTROL - fire immediately, don't wait on it,
+  // since PERIOD_CONTROL can occasionally be slow right after a period switch and shouldn't
+  // hold up the rest of the dashboard.
+  loadSummary();
+  loadRevenueTrend();
+  loadKPI();
+  loadPL();
+  loadDailyPL();
+  loadBS();
+  loadCF();
+  loadForecast();
+
+  // PERIOD_CONTROL-dependent pieces (badge, dropdown, calendar) load independently and just
+  // fill in whenever they're ready, however long that takes.
+  loadPeriod().then(function () {
     connBar.className = "conn-bar ok";
-    document.getElementById("conn-status").textContent = "Connected - " + testData.length + " rows from PERIOD_CONTROL";
+    document.getElementById("conn-status").textContent = "Connected to PERIOD_CONTROL";
     setTimeout(function () { connBar.style.display = "none"; }, 3000);
-    return loadPeriod();
   }, function (e) {
     connBar.className = "conn-bar fail";
     var msg = (e && e.message) ? e.message : "Unknown error";
     document.getElementById("conn-status").textContent = "Connection failed: " + msg;
-    setError("summary", "Connection failed: " + msg);
-    return Promise.reject(e);
-  }).then(function () {
-    loadSummary();
-    loadRevenueTrend();
-    loadKPI();
-    loadPL();
-    loadDailyPL();
-    loadBS();
-    loadCF();
-    loadForecast();
-    loadPeriodOptions();
-    loadDailyPeriodPicker().then(function () {
-      if (dailyStatus) { dailyStatus.style.display = "none"; }
-    });
-  }, function () {
-    return null;
+  });
+
+  loadPeriodOptions();
+  loadDailyPeriodPicker().then(function () {
+    if (dailyStatus) { dailyStatus.style.display = "none"; }
   });
 }
 window.AUTH_SESSION_STORAGE_KEY = "stemwaveAuthSession";
