@@ -159,15 +159,6 @@
   </div>
 </div>
 
-<div id="loading-video-overlay" style="display:none;position:fixed;inset:0;background:#0f172a;z-index:1900;align-items:center;justify-content:center;flex-direction:column;">
-  <div style="width:90%;max-width:640px;">
-    <div style="color:#fff;font-size:14px;font-weight:600;margin-bottom:12px;text-align:center;">Loading your dashboard &mdash; here's the latest from StemWave's YouTube channel in the meantime</div>
-    <div style="position:relative;width:100%;padding-top:56.25%;border-radius:10px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.4);">
-      <iframe id="loading-video-iframe" src="https://www.youtube.com/embed/videoseries?list=UUkj2CJtHhLug_HRs9y-H50w&autoplay=1&mute=1" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-    </div>
-  </div>
-</div>
-
 <div class="dash-header">
   <div class="header-brand">
     <div>
@@ -591,24 +582,9 @@ function makeTable(el, rows, cols) {
   el.appendChild(tbody);
 }
 
-function showLoadingVideo() {
-  var overlay = document.getElementById("loading-video-overlay");
-  var iframe = document.getElementById("loading-video-iframe");
-  if (iframe) { iframe.src = "https://www.youtube.com/embed/videoseries?list=UUkj2CJtHhLug_HRs9y-H50w&autoplay=1&mute=1"; }
-  if (overlay) { overlay.style.display = "flex"; }
-}
-
-function hideLoadingVideo() {
-  var overlay = document.getElementById("loading-video-overlay");
-  var iframe = document.getElementById("loading-video-iframe");
-  if (overlay) { overlay.style.display = "none"; }
-  if (iframe) { iframe.src = ""; } // actually stops playback - hiding the container alone doesn't
-}
-
 function setLoaded(section) {
   document.getElementById(section + "-loading").style.display = "none";
   document.getElementById(section + "-content").style.display = "block";
-  if (section === "summary") { hideLoadingVideo(); }
 }
 
 function setError(section, msg) {
@@ -2727,12 +2703,6 @@ function loadForecast() {
 }
 
 function loadAll(preserveTxnCache) {
-  showLoadingVideo();
-  setTimeout(function () {
-    // Safety fallback: never let the overlay (or the video) keep running indefinitely,
-    // even if something fails before the summary section ever finishes loading.
-    hideLoadingVideo();
-  }, 120000);
   if (!preserveTxnCache) {
     window.txnCache = null;
     window.txnCachePromise = null;
