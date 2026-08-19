@@ -677,7 +677,7 @@ function changePeriod(newPeriod) {
       setTimeout(function () {
         window.txnCache = null;
         loadAll();
-      }, 15000);
+      }, 5000);
     })
     .catch(function (err) {
       sel.disabled = false;
@@ -745,7 +745,7 @@ function changeDailyPeriod(dateVal) {
       setTimeout(function () {
         window.txnCache = null;
         loadAll();
-      }, 15000);
+      }, 5000);
     })
     .catch(function (err) {
       picker.disabled = false;
