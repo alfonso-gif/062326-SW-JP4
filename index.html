@@ -613,6 +613,8 @@ function loadPeriodOptions() {
     });
 
     var curLabel = window.periodLabels.cur;
+    var curLabelDate = new Date(curLabel);
+    if (!isNaN(curLabelDate.getTime())) { curLabel = monthNames[curLabelDate.getMonth()] + " " + curLabelDate.getFullYear(); }
     var curFound = false;
     for (var pk = 0; pk < periods.length; pk++) {
       if (periods[pk] === curLabel) { curFound = true; }
