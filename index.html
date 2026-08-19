@@ -575,6 +575,12 @@ function setError(section, msg) {
 window.periodLabels = { cur: "Current", prior: "Prior" };
 
 function loadPeriod() {
+  var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  function fmtPeriodLabel(raw) {
+    var d = new Date(raw);
+    if (!isNaN(d.getTime())) { return monthNames[d.getMonth()] + " " + d.getFullYear(); }
+    return raw;
+  }
   return getCachedSheet("PERIOD_CONTROL!A1:D10").then(function (rows) {
     var cur = "";
     var prior = "";
@@ -584,6 +590,8 @@ function loadPeriod() {
       if (key.indexOf("current") !== -1 && key.indexOf("year") === -1) { cur = r[1] || ""; }
       if (key.indexOf("prior") !== -1 && key.indexOf("year") === -1) { prior = r[1] || ""; }
     }
+    if (cur) { cur = fmtPeriodLabel(cur); }
+    if (prior) { prior = fmtPeriodLabel(prior); }
     window.periodLabels = { cur: cur || "Current", prior: prior || "Prior" };
     document.getElementById("period-label").textContent = cur ? (cur + " vs " + prior) : "Current period";
   }, function () {
