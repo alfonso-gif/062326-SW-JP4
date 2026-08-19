@@ -335,6 +335,10 @@ window.SHEET_ID = "1nlDU2Rl6at23As7jZOQEvvRETpbsUOb-3C8v8ylGrxU";
 // Paste the Web App URL from your deployed Apps Script here (see period-updater.gs)
 window.PERIOD_UPDATE_URL = "https://script.google.com/macros/s/AKfycbyetn7kM0lGhpnvXGy1fyOCt-qMPZl7awi4KDtWrncHUaBsToOODQSavabdI3CkK0g-6Q/exec";
 
+// Cloudflare Worker that proxies Google Sheets requests server-to-server, avoiding the
+// browser CORS-redirect penalty that made PERIOD_CONTROL's timing wildly inconsistent.
+window.CLOUDFLARE_WORKER_URL = "https://sw.alfonso-f1f.workers.dev";
+
 // Path to the auto-refreshed transaction cache file (see refresh-raw-gl.yml).
 // Relative path assumes raw_gl_cache.json sits alongside this HTML file in the repo.
 window.RAW_GL_CACHE_URL = "raw_gl_cache.json";
@@ -453,11 +457,31 @@ function fetchSheetViaAppsScript(sheetName) {
   });
 }
 
+function fetchSheetViaWorker(sheetName) {
+  if (!window.CLOUDFLARE_WORKER_URL) {
+    return Promise.reject(new Error("CLOUDFLARE_WORKER_URL not configured, can't proxy " + sheetName));
+  }
+  var encoded = encodeURIComponent(sheetName).split("%20").join("+");
+  var gvizUrl = "https://docs.google.com/spreadsheets/d/" + window.SHEET_ID + "/gviz/tq?tqx=out:csv&sheet=" + encoded;
+  var proxyUrl = window.CLOUDFLARE_WORKER_URL + "?target=" + encodeURIComponent(gvizUrl);
+  return fetch(proxyUrl).then(function (res) {
+    if (!res.ok) {
+      throw new Error("Worker proxy failed for " + sheetName + " (" + res.status + ")");
+    }
+    return res.text();
+  }).then(function (text) {
+    if (text.indexOf("accounts.google.com") !== -1) {
+      throw new Error("Sheet not accessible via proxy: " + sheetName);
+    }
+    return parseCSV(text);
+  });
+}
+
 function getCachedSheet(range) {
   var sheetName = range.indexOf("!") !== -1 ? range.split("!")[0] : range;
   if (window.sheetCache[sheetName]) { return Promise.resolve(window.sheetCache[sheetName]); }
   if (window.sheetCachePromises[sheetName]) { return window.sheetCachePromises[sheetName]; }
-  var fetchPromise = GVIZ_BYPASS_SHEETS[sheetName] ? fetchSheetViaAppsScript(sheetName) : fetchRange(range);
+  var fetchPromise = GVIZ_BYPASS_SHEETS[sheetName] ? fetchSheetViaWorker(sheetName) : fetchRange(range);
   var p = fetchPromise.then(function (rows) {
     window.sheetCache[sheetName] = rows;
     window.sheetCachePromises[sheetName] = null;
