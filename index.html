@@ -335,11 +335,6 @@ window.SHEET_ID = "1nlDU2Rl6at23As7jZOQEvvRETpbsUOb-3C8v8ylGrxU";
 // Paste the Web App URL from your deployed Apps Script here (see period-updater.gs)
 window.PERIOD_UPDATE_URL = "https://script.google.com/macros/s/AKfycbyetn7kM0lGhpnvXGy1fyOCt-qMPZl7awi4KDtWrncHUaBsToOODQSavabdI3CkK0g-6Q/exec";
 
-// Google Sheets API v4 key - restricted to this domain + Sheets API only.
-// Used as a test path for PERIOD_CONTROL specifically, to see if the official API
-// avoids whatever internal Google behavior makes gviz's timing so inconsistent.
-window.GOOGLE_API_KEY = "AIzaSyDd1q6WAsP53vfXtjlO22Te6xbaG6cNjk0";
-
 // Path to the auto-refreshed transaction cache file (see refresh-raw-gl.yml).
 // Relative path assumes raw_gl_cache.json sits alongside this HTML file in the repo.
 window.RAW_GL_CACHE_URL = "raw_gl_cache.json";
@@ -444,32 +439,11 @@ function fetchRange(range) {
 window.sheetCache = window.sheetCache || {};
 window.sheetCachePromises = window.sheetCachePromises || {};
 
-var SHEETS_API_BYPASS_SHEETS = { "PERIOD_CONTROL": true };
-
-function fetchSheetViaSheetsAPI(sheetName) {
-  if (!window.GOOGLE_API_KEY) {
-    return Promise.reject(new Error("GOOGLE_API_KEY not configured, can't use Sheets API v4 for " + sheetName));
-  }
-  var url = "https://sheets.googleapis.com/v4/spreadsheets/" + window.SHEET_ID + "/values/" + encodeURIComponent(sheetName) + "?key=" + window.GOOGLE_API_KEY;
-  return fetch(url).then(function (res) {
-    if (!res.ok) {
-      return res.json().then(function (errBody) {
-        var msg = (errBody && errBody.error && errBody.error.message) ? errBody.error.message : ("HTTP " + res.status);
-        throw new Error("Sheets API v4 error for " + sheetName + ": " + msg);
-      });
-    }
-    return res.json();
-  }).then(function (data) {
-    return data.values || [];
-  });
-}
-
 function getCachedSheet(range) {
   var sheetName = range.indexOf("!") !== -1 ? range.split("!")[0] : range;
   if (window.sheetCache[sheetName]) { return Promise.resolve(window.sheetCache[sheetName]); }
   if (window.sheetCachePromises[sheetName]) { return window.sheetCachePromises[sheetName]; }
-  var fetchPromise = SHEETS_API_BYPASS_SHEETS[sheetName] ? fetchSheetViaSheetsAPI(sheetName) : fetchRange(range);
-  var p = fetchPromise.then(function (rows) {
+  var p = fetchRange(range).then(function (rows) {
     window.sheetCache[sheetName] = rows;
     window.sheetCachePromises[sheetName] = null;
     return rows;
