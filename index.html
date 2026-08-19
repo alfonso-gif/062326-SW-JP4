@@ -1253,7 +1253,63 @@ function fallbackNarrative(nr, gp, eb, opex, ni, bsCtx, cfCtx, kpiCtx) {
 }
 
 function generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx, kpiCtx, topFlags) {
-  document.getElementById("narrative").innerHTML = renderNarrativeHtml(fallbackNarrative(nr, gp, eb, opex, ni, bsCtx, cfCtx, kpiCtx));
+  var promptParts = [];
+  promptParts.push("You are the CFO of StemWave writing a thorough, detailed board memo covering " + window.periodLabels.cur + " vs " + window.periodLabels.prior + ".");
+  promptParts.push("CRITICAL INSTRUCTIONS: Write FOUR separate paragraphs labeled 'P&L:', 'Balance Sheet:', 'Cash Flow:', and 'KPIs:'. Each paragraph MUST be AT LEAST 80 words and contain AT LEAST 5 full sentences. Do not write short summaries. Write like an experienced CFO explaining the quarter to a board of directors who were not in the room \u2014 give context, explain causation, compare to trend, and flag risks or wins. Do not use bullet points, do not abbreviate. This is a formal financial memo, not a quick summary.");
+  promptParts.push("P&L data:");
+  promptParts.push("- Net Revenue: " + fmtMoney(nr.cur) + " (" + (nr.varP >= 0 ? "+" : "") + nr.varP.toFixed(1) + "% vs prior) | YTD: " + fmtMoney(nr.ytdCur) + " (Prior YTD: " + fmtMoney(nr.ytdPrv) + ")");
+  promptParts.push("- Gross Profit: " + fmtMoney(gp.cur) + " | Margin: " + gm.cur.toFixed(1) + "% (prior: " + gm.prv.toFixed(1) + "%)");
+  promptParts.push("- Total OpEx: " + fmtMoney(opex.cur) + " (" + (opex.varP >= 0 ? "+" : "") + opex.varP.toFixed(1) + "% vs prior)");
+  promptParts.push("- EBITDA: " + fmtMoney(eb.cur) + " (" + em.cur.toFixed(1) + "% margin) vs " + fmtMoney(eb.prv) + " prior");
+  promptParts.push("- Net Income: " + fmtMoney(ni.cur));
+  if (topFlags && topFlags.length > 0) {
+    var driverStrs = [];
+    for (var df = 0; df < Math.min(topFlags.length, 5); df++) {
+      var fItem = topFlags[df];
+      driverStrs.push(fItem.label + " (" + fmtMoney(fItem.varD) + ", " + (fItem.varP > 0 ? "+" : "") + fItem.varP.toFixed(1) + "%)");
+    }
+    promptParts.push("- Largest individual line-item variances this period: " + driverStrs.join("; "));
+  }
+  promptParts.push("Balance Sheet data:");
+  promptParts.push("- Cash & Equivalents: " + fmtMoney(bsCtx.cashCur) + " (" + (bsCtx.cashChg >= 0 ? "+" : "") + fmtMoney(bsCtx.cashChg) + " vs prior)");
+  promptParts.push("- Total Assets: " + fmtMoney(bsCtx.totalAssetsCur) + " (prior: " + fmtMoney(bsCtx.totalAssetsPrv) + ")");
+  promptParts.push("- Total Liabilities: " + fmtMoney(bsCtx.totalLiabCur) + " (prior: " + fmtMoney(bsCtx.totalLiabPrv) + ")");
+  promptParts.push("- Accounts Receivable: " + fmtMoney(bsCtx.arCur) + " (prior: " + fmtMoney(bsCtx.arPrv) + ")");
+  promptParts.push("- Accounts Payable: " + fmtMoney(bsCtx.apCur) + " (prior: " + fmtMoney(bsCtx.apPrv) + ")");
+  promptParts.push("Cash Flow data:");
+  promptParts.push("- Net Cash from Operations: " + fmtMoney(cfCtx.netCashOps));
+  promptParts.push("- Net Cash from Investing: " + fmtMoney(cfCtx.netCashInv));
+  promptParts.push("- Net Cash from Financing: " + fmtMoney(cfCtx.netCashFin));
+  promptParts.push("KPI data:");
+  promptParts.push("- Gross Margin: " + kpiCtx.gm.toFixed(1) + "%");
+  promptParts.push("- EBITDA Margin: " + kpiCtx.em.toFixed(1) + "%");
+  promptParts.push("- Current Ratio: " + kpiCtx.cr.toFixed(2));
+  promptParts.push("- Quick Ratio: " + kpiCtx.qr.toFixed(2));
+  promptParts.push("- Debt-to-Equity: " + kpiCtx.de.toFixed(2));
+  promptParts.push("- Revenue Growth YoY: " + kpiCtx.yoy.toFixed(1) + "%");
+  promptParts.push("- Revenue Growth MoM: " + kpiCtx.mom.toFixed(1) + "%");
+  promptParts.push("Remember: each paragraph needs 80+ words and 5+ sentences. Write the full detailed memo now.");
+  var prompt = promptParts.join("\n");
+
+  document.getElementById("narrative").innerHTML = "<p style=\"color:#94a3b8;\">Generating detailed narrative...</p>";
+
+  fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 2000, messages: [{ role: "user", content: prompt }] })
+  }).then(function (res) {
+    return res.json();
+  }).then(function (data) {
+    var txt = "";
+    if (data.content) {
+      for (var i = 0; i < data.content.length; i++) {
+        if (data.content[i].type === "text") { txt = data.content[i].text; break; }
+      }
+    }
+    document.getElementById("narrative").innerHTML = renderNarrativeHtml(txt || fallbackNarrative(nr, gp, eb, opex, ni, bsCtx, cfCtx, kpiCtx));
+  }, function () {
+    document.getElementById("narrative").innerHTML = renderNarrativeHtml(fallbackNarrative(nr, gp, eb, opex, ni, bsCtx, cfCtx, kpiCtx));
+  });
 }
 
 function normalizePeriod(s) {
@@ -2699,33 +2755,32 @@ function loadAll(preserveTxnCache) {
   connBar.style.display = "block";
   document.getElementById("conn-status").textContent = "connecting...";
 
-  // Everything below is independent of PERIOD_CONTROL - fire immediately, don't wait on it,
-  // since PERIOD_CONTROL can occasionally be slow right after a period switch and shouldn't
-  // hold up the rest of the dashboard.
-  loadSummary();
-  loadRevenueTrend();
-  loadKPI();
-  loadPL();
-  loadDailyPL();
-  loadBS();
-  loadCF();
-  loadForecast();
-
-  // PERIOD_CONTROL-dependent pieces (badge, dropdown, calendar) load independently and just
-  // fill in whenever they're ready, however long that takes.
-  loadPeriod().then(function () {
+  getCachedSheet("PERIOD_CONTROL!A1:B5").then(function (testData) {
     connBar.className = "conn-bar ok";
-    document.getElementById("conn-status").textContent = "Connected to PERIOD_CONTROL";
+    document.getElementById("conn-status").textContent = "Connected - " + testData.length + " rows from PERIOD_CONTROL";
     setTimeout(function () { connBar.style.display = "none"; }, 3000);
+    return loadPeriod();
   }, function (e) {
     connBar.className = "conn-bar fail";
     var msg = (e && e.message) ? e.message : "Unknown error";
     document.getElementById("conn-status").textContent = "Connection failed: " + msg;
-  });
-
-  loadPeriodOptions();
-  loadDailyPeriodPicker().then(function () {
-    if (dailyStatus) { dailyStatus.style.display = "none"; }
+    setError("summary", "Connection failed: " + msg);
+    return Promise.reject(e);
+  }).then(function () {
+    loadSummary();
+    loadRevenueTrend();
+    loadKPI();
+    loadPL();
+    loadDailyPL();
+    loadBS();
+    loadCF();
+    loadForecast();
+    loadPeriodOptions();
+    loadDailyPeriodPicker().then(function () {
+      if (dailyStatus) { dailyStatus.style.display = "none"; }
+    });
+  }, function () {
+    return null;
   });
 }
 window.AUTH_SESSION_STORAGE_KEY = "stemwaveAuthSession";
