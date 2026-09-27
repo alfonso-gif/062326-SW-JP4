@@ -2713,7 +2713,7 @@ function loadAll(preserveTxnCache) {
   });
 }
 window.AUTH_SESSION_STORAGE_KEY = "stemwaveAuthSession";
-window.AUTH_SESSION_DAYS = 2;
+window.AUTH_SESSION_DAYS = 0.25; // 6 hours
 
 function showLoginError(msg) {
   var el = document.getElementById("login-error");
