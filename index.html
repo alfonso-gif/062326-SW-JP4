@@ -584,12 +584,36 @@ function loadPeriod() {
   });
 }
 
+var HARDCODED_HISTORICAL_PERIODS = (function () {
+  var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var out = [];
+  for (var y = 2023; y <= 2025; y++) {
+    for (var m = 0; m < 12; m++) { out.push(monthNames[m] + " " + y); }
+  }
+  return out;
+})();
+
+function populateHardcodedPeriods() {
+  var sel = document.getElementById("period-select");
+  if (!sel) { return; }
+  var opts = "";
+  for (var i = 0; i < HARDCODED_HISTORICAL_PERIODS.length; i++) {
+    opts += "<option value=\"" + HARDCODED_HISTORICAL_PERIODS[i] + "\">" + HARDCODED_HISTORICAL_PERIODS[i] + "</option>";
+  }
+  sel.innerHTML = opts;
+  sel.disabled = false;
+}
+
 function loadPeriodOptions() {
   var sel = document.getElementById("period-select");
   var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   getCachedSheet("PERIOD_CONTROL!B11:B1000").then(function (rows) {
     var seen = {};
     var periods = [];
+    for (var hp = 0; hp < HARDCODED_HISTORICAL_PERIODS.length; hp++) {
+      var hVal = HARDCODED_HISTORICAL_PERIODS[hp];
+      if (!seen[hVal]) { seen[hVal] = true; periods.push(hVal); }
+    }
     for (var i = 10; i < rows.length; i++) {
       var raw = String((rows[i] || [])[1] || "").replace(/^\s+|\s+$/g, "");
       if (!raw) { continue; }
@@ -1557,7 +1581,12 @@ function openTxnModal(accountName, exactDate) {
   var txnFetchPromise = isDailyModeForFetch ? getDailyTxnCache() : getMonthlyTxnCache();
 
   txnFetchPromise.then(function (rows) {
-    var headerRow = rows[0] || [];
+    var headerRowIdx = 0;
+    for (var hr = 0; hr < rows.length && hr < 6; hr++) {
+      var hrTxt = (rows[hr] || []).join("|").toLowerCase();
+      if (hrTxt.indexOf("period") !== -1 && hrTxt.indexOf("amount") !== -1) { headerRowIdx = hr; break; }
+    }
+    var headerRow = rows[headerRowIdx] || [];
     var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 15, account: 5, memo: 16, amount: 7, acctnum: 10, acctname: 12 };
     for (var hc = 0; hc < headerRow.length; hc++) {
       var h = String(headerRow[hc] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
@@ -1588,7 +1617,7 @@ function openTxnModal(accountName, exactDate) {
     var matches = [];
     var acctOnlyCount = 0;
     var periodOnlyCount = 0;
-    for (var i = 1; i < rows.length; i++) {
+    for (var i = headerRowIdx + 1; i < rows.length; i++) {
       var r = rows[i];
       if (!r) { continue; }
       var acctName = String(r[colIdx.acctname] || "").replace(/^\s+|\s+$/g, "");
@@ -1670,7 +1699,14 @@ function openTxnModal(accountName, exactDate) {
       for (var fc = 0; fc < sampleRow.length; fc++) {
         fullRowDump.push(fc + "=[" + String(sampleRow[fc] || "") + "]");
       }
+      var periodSamples = [];
+      var seenPeriodVals = {};
+      for (var pi = headerRowIdx + 1; pi < rows.length && periodSamples.length < 6; pi++) {
+        var pv = String((rows[pi] || [])[colIdx.period] || "");
+        if (pv && !seenPeriodVals[pv]) { seenPeriodVals[pv] = true; periodSamples.push(pv); }
+      }
       var diag = "Searched " + (rows.length - 1) + " total rows in " + (isDailyModeForFetch ? "Raw_GL_Daily" : "Raw_GL_Selected_Period") + ". " +
+        "Header row used: row " + (headerRowIdx + 1) + "; Period column index " + colIdx.period + ", sample values: " + JSON.stringify(periodSamples) + ". " +
         acctOnlyCount + " row(s) matched account \"" + accountName + "\" (any " + (isDailyMode ? "date" : "period") + "). " +
         periodOnlyCount + " row(s) matched " + (isDailyMode ? ("date range \"" + rangeLabel + "\"") : ("period \"" + targetPeriod + "\"")) + " (any account). " +
         "Values similar to \"" + accountName + "\": " + JSON.stringify(fuzzyVals) + ". " +
@@ -2664,6 +2700,7 @@ function loadForecast() {
 }
 
 function loadAll(preserveTxnCache) {
+  populateHardcodedPeriods();
   if (!preserveTxnCache) {
     window.txnCache = null;
     window.txnCachePromise = null;
@@ -2672,8 +2709,6 @@ function loadAll(preserveTxnCache) {
   window.sheetCachePromises = {};
   document.getElementById("global-error").style.display = "none";
 
-  var periodSel = document.getElementById("period-select");
-  if (periodSel) { periodSel.disabled = true; }
   var dailyPicker = document.getElementById("pldaily-date-picker");
   if (dailyPicker) { dailyPicker.disabled = true; }
   var dailyStatus = document.getElementById("pldaily-conn-status");
@@ -2713,7 +2748,7 @@ function loadAll(preserveTxnCache) {
   });
 }
 window.AUTH_SESSION_STORAGE_KEY = "stemwaveAuthSession";
-window.AUTH_SESSION_DAYS = 0.25; // 6 hours
+window.AUTH_SESSION_DAYS = 2;
 
 function showLoginError(msg) {
   var el = document.getElementById("login-error");
