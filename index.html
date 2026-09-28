@@ -1268,6 +1268,13 @@ function generateNarrative(nr, gp, eb, opex, gm, em, ni, bsCtx, cfCtx, kpiCtx, t
 function normalizePeriod(s) {
   var str = String(s || "").replace(/^\s+|\s+$/g, "");
   if (!str) { return ""; }
+  var numericAbbrs = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  var dm = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (dm && parseInt(dm[1], 10) >= 1 && parseInt(dm[1], 10) <= 12) { return numericAbbrs[parseInt(dm[1], 10) - 1] + " " + dm[3]; }
+  var iso = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso && parseInt(iso[2], 10) >= 1 && parseInt(iso[2], 10) <= 12) { return numericAbbrs[parseInt(iso[2], 10) - 1] + " " + iso[1]; }
+  var gv = str.match(/^Date\((\d{4}),\s*(\d{1,2}),\s*\d{1,2}\)/);
+  if (gv && parseInt(gv[2], 10) >= 0 && parseInt(gv[2], 10) <= 11) { return numericAbbrs[parseInt(gv[2], 10)] + " " + gv[1]; }
   var yearMatch = str.match(/(20\d{2})/);
   var year = yearMatch ? yearMatch[1] : "";
   var monthAbbrs = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
