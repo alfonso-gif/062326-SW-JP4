@@ -1590,8 +1590,15 @@ function openTxnModal(accountName, exactDate) {
   txnFetchPromise.then(function (rows) {
     var headerRowIdx = 0;
     for (var hr = 0; hr < rows.length && hr < 6; hr++) {
-      var hrTxt = (rows[hr] || []).join("|").toLowerCase();
-      if (hrTxt.indexOf("period") !== -1 && hrTxt.indexOf("amount") !== -1) { headerRowIdx = hr; break; }
+      var hasPeriodCell = false;
+      var hasAmountCell = false;
+      var hrowCells = rows[hr] || [];
+      for (var hcI = 0; hcI < hrowCells.length; hcI++) {
+        var hcv = String(hrowCells[hcI] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
+        if (hcv === "period") { hasPeriodCell = true; }
+        if (hcv === "amount") { hasAmountCell = true; }
+      }
+      if (hasPeriodCell && hasAmountCell) { headerRowIdx = hr; break; }
     }
     var headerRow = rows[headerRowIdx] || [];
     var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 15, account: 5, memo: 16, amount: 7, acctnum: 10, acctname: 12 };
