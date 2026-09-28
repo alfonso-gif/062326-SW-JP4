@@ -202,6 +202,14 @@
         <button class="tab" onclick="showTab('forecast', this)">13-Week</button>
       </div>
     </div>
+    <div class="nav-group">
+      <div class="nav-group-label">12-Month View</div>
+      <div class="nav-group-tabs">
+        <button class="tab" onclick="showTab('pl12m', this)">P&amp;L</button>
+        <button class="tab" onclick="showTab('bs12m', this)">Balance Sheet</button>
+        <button class="tab" onclick="showTab('cf12m', this)">Cash Flow</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -290,6 +298,27 @@
       <div class="card-title">Ending Cash Balance</div>
       <div class="chart-wrap-tall"><canvas id="endcash-chart"></canvas></div>
     </div>
+  </div>
+</div>
+
+<div id="section-pl12m" class="section">
+  <div class="card">
+    <div class="card-title">Profit &amp; Loss (12-Month View)</div>
+    <div style="padding:40px 16px;text-align:center;color:#94a3b8;font-size:13px;">Work in progress &mdash; to be added.</div>
+  </div>
+</div>
+
+<div id="section-bs12m" class="section">
+  <div class="card">
+    <div class="card-title">Balance Sheet (12-Month View)</div>
+    <div style="padding:40px 16px;text-align:center;color:#94a3b8;font-size:13px;">Work in progress &mdash; to be added.</div>
+  </div>
+</div>
+
+<div id="section-cf12m" class="section">
+  <div class="card">
+    <div class="card-title">Cash Flow (12-Month View)</div>
+    <div style="padding:40px 16px;text-align:center;color:#94a3b8;font-size:13px;">Work in progress &mdash; to be added.</div>
   </div>
 </div>
 
