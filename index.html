@@ -136,10 +136,13 @@
   #forecast-table th:first-child, #forecast-table td:first-child { min-width: 150px; }
   .modal-total { padding: 12px 20px; border-top: 1px solid #e2e8f0; font-size: 12px; font-weight: 700; display: flex; justify-content: space-between; background: #f8fafc; }
 
-  .chat-fab { position: fixed; right: 24px; bottom: 24px; width: 52px; height: 52px; border-radius: 50%; border: none; background: #0ea5e9; color: #fff; cursor: pointer; z-index: 900; box-shadow: 0 4px 14px rgba(14,165,233,.35); display: flex; align-items: center; justify-content: center; }
-  .chat-fab:hover { background: #0284c7; }
-  .chat-fab svg { width: 24px; height: 24px; }
-  .chat-panel { position: fixed; right: 24px; bottom: 88px; width: 360px; max-width: calc(100vw - 32px); height: 480px; max-height: calc(100vh - 120px); background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 12px 40px rgba(15,23,42,.18); z-index: 900; display: none; flex-direction: column; overflow: hidden; }
+  .chat-fab { position: fixed; right: 24px; bottom: 24px; width: 76px; height: 76px; border-radius: 50%; border: 2px solid #2dd4bf; background: #0f172a; cursor: pointer; z-index: 900; box-shadow: 0 6px 20px rgba(15,23,42,.35); display: flex; align-items: center; justify-content: center; padding: 0; transition: transform 0.15s; }
+  .chat-fab:hover { transform: translateY(-3px); }
+  .chat-fab svg { width: 58px; height: 58px; }
+  .chat-fab .bot-eye { animation: botBlink 4s infinite; transform-origin: center; transform-box: fill-box; }
+  @keyframes botBlink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+  @media (prefers-reduced-motion: reduce) { .chat-fab .bot-eye { animation: none; } .chat-fab { transition: none; } }
+  .chat-panel { position: fixed; right: 24px; bottom: 112px; width: 360px; max-width: calc(100vw - 32px); height: 480px; max-height: calc(100vh - 120px); background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 12px 40px rgba(15,23,42,.18); z-index: 900; display: none; flex-direction: column; overflow: hidden; }
   .chat-panel.open { display: flex; }
   .chat-head { padding: 12px 14px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; }
   .chat-title { font-size: 13px; font-weight: 700; color: #0f172a; display: flex; align-items: center; gap: 8px; }
@@ -392,7 +395,20 @@
 </div>
 
 <button id="chat-fab" class="chat-fab" onclick="toggleChat()" title="Ask about the numbers" aria-label="Open chat">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>
+  <svg viewBox="0 0 64 64" aria-hidden="true">
+    <circle cx="23" cy="58" r="3" fill="#475569"/>
+    <circle cx="41" cy="58" r="3" fill="#475569"/>
+    <rect x="44" y="27" width="6" height="14" rx="2.5" fill="#64748b"/>
+    <rect x="47" y="23" width="3" height="8" rx="1.5" fill="#94a3b8"/>
+    <rect x="18" y="24" width="28" height="32" rx="4" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1"/>
+    <rect x="21" y="30" width="22" height="7" rx="1.5" fill="#e2e8f0"/>
+    <path d="M22 46 q4 -4 8 0 t8 0 t6 0" fill="none" stroke="#14b8a6" stroke-width="2" stroke-linecap="round"/>
+    <rect x="15" y="6" width="34" height="20" rx="5" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1"/>
+    <rect x="18" y="9" width="28" height="14" rx="3" fill="#0f172a"/>
+    <circle class="bot-eye" cx="27" cy="15" r="2.4" fill="#2dd4bf"/>
+    <circle class="bot-eye" cx="37" cy="15" r="2.4" fill="#2dd4bf"/>
+    <path d="M28.5 19 q3.5 2.5 7 0" fill="none" stroke="#2dd4bf" stroke-width="1.4" stroke-linecap="round"/>
+  </svg>
 </button>
 
 <div id="chat-panel" class="chat-panel">
