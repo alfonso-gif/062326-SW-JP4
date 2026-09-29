@@ -309,9 +309,12 @@
 </div>
 
 <div id="section-bs12m" class="section">
-  <div class="card">
-    <div class="card-title">Balance Sheet (TTM)</div>
-    <div style="padding:40px 16px;text-align:center;color:#94a3b8;font-size:13px;">Work in progress &mdash; to be added.</div>
+  <div id="bs12m-loading" class="loading"><div class="spinner"></div>Loading Balance Sheet...</div>
+  <div id="bs12m-content" style="display:none;">
+    <div class="card">
+      <div class="card-title">Balance Sheet (TTM)<span id="bs12m-range" style="text-transform:none;letter-spacing:0;font-weight:500;color:#94a3b8;margin-left:8px;"></span></div>
+      <div style="overflow-x:auto;"><table class="data-table" id="bs12m-table"></table></div>
+    </div>
   </div>
 </div>
 
@@ -2472,6 +2475,129 @@ function loadBS() {
   });
 }
 
+function loadBS12() {
+  document.getElementById("bs12m-loading").style.display = "flex";
+  document.getElementById("bs12m-content").style.display = "none";
+  return getCachedSheet("12-MO BALANCE_SHEET!A1:Q80").then(function (rows) {
+    var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    var monthRe = /^[A-Za-z]{3,9}\.?\s+\d{4}$/;
+    var rangeRe = /([A-Za-z]{3,9})\s+(\d{4})\s*[-\u2013\u2014]\s*([A-Za-z]{3,9})\s+(\d{4})/;
+
+    // Locate the month header row
+    var monthCols = [];
+    var monthLabels = [];
+    for (var i = 0; i < rows.length && i < 15; i++) {
+      var hr = rows[i] || [];
+      var cols = [];
+      for (var c = 0; c < hr.length; c++) {
+        if (monthRe.test(String(hr[c] || "").replace(/^\s+|\s+$/g, ""))) { cols.push(c); }
+      }
+      if (cols.length >= 3) {
+        monthCols = cols;
+        for (var m = 0; m < cols.length; m++) { monthLabels.push(String(hr[cols[m]]).replace(/^\s+|\s+$/g, "")); }
+        break;
+      }
+    }
+
+    // Date range text from the title rows (e.g. "August 2025 - July 2026")
+    var rangeTxt = "";
+    var rangeStart = null;
+    for (var t = 0; t < rows.length && t < 10 && !rangeTxt; t++) {
+      var tr = rows[t] || [];
+      for (var tc = 0; tc < tr.length; tc++) {
+        var rm = String(tr[tc] || "").match(rangeRe);
+        if (rm) {
+          rangeTxt = rm[1] + " " + rm[2] + " \u2013 " + rm[3] + " " + rm[4];
+          var sd = new Date(rm[1] + " 1, " + rm[2]);
+          if (!isNaN(sd.getTime())) { rangeStart = sd; }
+          break;
+        }
+      }
+    }
+
+    // Fallback if the month header row didn't come through: use the numeric columns of TOTAL ASSETS
+    if (monthCols.length === 0) {
+      for (var fr = 0; fr < rows.length; fr++) {
+        var frow = rows[fr] || [];
+        var isTA = false;
+        for (var fc = 0; fc < Math.min(frow.length, 5); fc++) {
+          if (String(frow[fc] || "").replace(/^\s+|\s+$/g, "").toUpperCase() === "TOTAL ASSETS") { isTA = true; }
+        }
+        if (isTA) {
+          for (var nc = 1; nc < frow.length; nc++) {
+            var v = String(frow[nc] || "").replace(/^\s+|\s+$/g, "");
+            if (v !== "" && !isNaN(numVal(v)) && /\d/.test(v)) { monthCols.push(nc); }
+          }
+          break;
+        }
+      }
+      for (var ml = 0; ml < monthCols.length; ml++) {
+        if (rangeStart) {
+          var md = new Date(rangeStart.getFullYear(), rangeStart.getMonth() + ml, 1);
+          monthLabels.push(monthNames[md.getMonth()] + " " + md.getFullYear());
+        } else {
+          monthLabels.push("Month " + (ml + 1));
+        }
+      }
+    }
+
+    if (monthCols.length === 0) {
+      setError("bs12m", "Could not find month columns in 12-MO BALANCE_SHEET.");
+      return;
+    }
+
+    var firstMonthCol = monthCols[0];
+    var tableRows = [];
+    var started = false;
+
+    for (var r = 0; r < rows.length; r++) {
+      var row = rows[r] || [];
+      var label = "";
+      for (var lc = 0; lc < firstMonthCol && lc < row.length; lc++) {
+        var lv = String(row[lc] || "").replace(/^\s+|\s+$/g, "");
+        if (lv) { label = lv; break; }
+      }
+      if (!label) { continue; }
+      var upper = label.toUpperCase();
+      if (!started) {
+        if (upper === "ASSETS") { started = true; } else { continue; }
+      }
+
+      var hasNums = false;
+      var allZero = true;
+      var vals = [];
+      for (var k = 0; k < monthCols.length; k++) {
+        var raw = row[monthCols[k]];
+        var rawStr = (raw === undefined || raw === null) ? "" : String(raw).replace(/^\s+|\s+$/g, "");
+        if (rawStr !== "") { hasNums = true; }
+        var n = numVal(rawStr);
+        if (Math.abs(n) >= 0.005) { allZero = false; }
+        vals.push({ raw: rawStr, n: n });
+      }
+
+      var isCheck = upper.indexOf("BALANCE CHECK") !== -1;
+      var isTotal = !isCheck && upper.indexOf("TOTAL") !== -1;
+      var isBanner = !isCheck && !isTotal && !hasNums;
+      if (!isBanner && !isTotal && !isCheck && allZero) { continue; }
+
+      var displayLabel = label.replace(/\bASETS\b/g, "ASSETS").replace(/\bLIABILITES\b/g, "LIABILITIES");
+      var cells = [{ text: displayLabel, cls: (isBanner || isTotal || isCheck) ? "" : "indent" }];
+      for (var q = 0; q < vals.length; q++) {
+        if (isBanner) { cells.push({ text: "", cls: "" }); continue; }
+        var txt = vals[q].raw === "" ? String.fromCharCode(8212) : fmtMoney(vals[q].n);
+        cells.push({ text: txt, cls: (!isCheck && vals[q].n < 0) ? "neg" : "" });
+      }
+      tableRows.push({ cells: cells, rowClass: isCheck ? "row-reconcil" : (isTotal ? "row-total" : (isBanner ? "row-header" : "")) });
+    }
+
+    makeTable(document.getElementById("bs12m-table"), tableRows, ["Line Item"].concat(monthLabels));
+    document.getElementById("bs12m-range").textContent = rangeTxt ? ("\u00B7 " + rangeTxt) : "";
+    setLoaded("bs12m");
+  }, function (e) {
+    setError("bs12m", "Could not load TTM Balance Sheet: " + e.message);
+  });
+}
+
 function loadCF() {
   document.getElementById("cf-loading").style.display = "flex";
   document.getElementById("cf-content").style.display = "none";
@@ -2780,6 +2906,7 @@ function loadAll(preserveTxnCache) {
     loadPL();
     loadDailyPL();
     loadBS();
+    loadBS12();
     loadCF();
     loadForecast();
     loadPeriodOptions();
