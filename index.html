@@ -2489,7 +2489,15 @@ var PL12_CATEGORIES = {
 function loadPL12() {
   document.getElementById("pl12m-loading").style.display = "flex";
   document.getElementById("pl12m-content").style.display = "none";
-  return getCachedSheet("12-MO P&L!A1:R120").then(function (rows) {
+  // Fetched with headers=0 so Google does not merge the title rows into a header row
+  var pl12Url = "https://docs.google.com/spreadsheets/d/" + window.SHEET_ID + "/gviz/tq?tqx=out:csv&headers=0&sheet=" + encodeURIComponent("12-MO P&L");
+  return fetch(pl12Url).then(function (res) {
+    if (!res.ok) { throw new Error("Could not load sheet: 12-MO P&L (" + res.status + ")"); }
+    return res.text();
+  }).then(function (text) {
+    if (text.indexOf("accounts.google.com") !== -1) { throw new Error("Sheet not accessible: 12-MO P&L"); }
+    return parseCSV(text);
+  }).then(function (rows) {
     var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     var monthRe = /^[A-Za-z]{3,9}\.?\s+\d{4}$/;
     var rangeRe = /([A-Za-z]{3,9})\s+(\d{4})\s*[-\u2013\u2014]\s*([A-Za-z]{3,9})\s+(\d{4})/;
@@ -2585,7 +2593,7 @@ function loadPL12() {
       if (!label) { continue; }
       var upper = label.toUpperCase();
       if (!started) {
-        if (upper === "REVENUE" && labelCol !== lineItemCol) { started = true; } else { continue; }
+        if (upper === "REVENUE") { started = true; } else { continue; }
       }
 
       var hasNums = false;
