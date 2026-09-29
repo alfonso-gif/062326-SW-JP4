@@ -1872,10 +1872,14 @@ function openTxnModalRange(accountLabel, accountNames, colKey) {
       if (h === "type") { colIdx.type = hc; }
       if (h.indexOf("document") !== -1) { colIdx.docnum = hc; }
       if (h.indexOf("customer/vendor") !== -1 || h.indexOf("customer / vendor") !== -1) { colIdx.name = hc; }
-      if (h === "description") { colIdx.memo = hc; }
+      if (h === "description" || h === "memo") { colIdx.memo = hc; }
+      if (h === "name") { colIdx.nameAlt = hc; }
       if (h === "amount") { colIdx.amount = hc; }
       if (h.indexOf("account name") !== -1 || h.indexOf("subaccount") !== -1 || h.indexOf("sub account") !== -1 || h.indexOf("sub-account") !== -1) { colIdx.acctname = hc; }
     }
+
+    // Raw_GL keeps the customer/vendor name in column N (Name in column E is sometimes blank)
+    if (colKey !== "cur") { colIdx.name = 13; }
 
     var matches = [];
     var earliestKey = null;
@@ -1892,7 +1896,7 @@ function openTxnModalRange(accountLabel, accountNames, colKey) {
       if (amt === 0) { continue; }
       matches.push({
         date: r[colIdx.date] || "", type: r[colIdx.type] || "", docnum: r[colIdx.docnum] || "",
-        name: r[colIdx.name] || "", memo: r[colIdx.memo] || "", amount: amt
+        name: r[colIdx.name] || (colIdx.nameAlt !== undefined ? r[colIdx.nameAlt] : "") || "", memo: r[colIdx.memo] || "", amount: amt
       });
     }
 
