@@ -76,6 +76,8 @@
   .indent { padding-left: 24px !important; color: #64748b !important; }
   .data-table td.ttm-total { font-weight: 700; background: #f8fafc; border-left: 1px solid #e2e8f0; }
   .row-reconcil td.neg { color: #ef4444; font-style: normal; font-weight: 600; }
+  .data-table td.pl-cell-click { cursor: pointer; }
+  .data-table td.pl-cell-click:hover { text-decoration: underline; color: #0369a1; background: #e0f2fe !important; }
   tr.pl-clickable, tr.sub-row.pl-clickable { cursor: pointer; }
   tr.row-category.pl-clickable:hover td, tr.sub-row.pl-clickable:hover td { background: #e0f2fe !important; }
   tr.row-category.pl-clickable td:first-child::after, tr.sub-row.pl-clickable td:first-child::after { content: "\2197"; font-size: 9px; color: #0ea5e9; opacity: 0; transition: opacity 0.15s; margin-left: 4px; }
@@ -1772,6 +1774,175 @@ function openTxnModal(accountName, exactDate) {
   });
 }
 
+var PL_CELL_COLS = ["cur", "prior", "curytd", "priorytd"];
+
+function wirePLCellClicks(tableId, groupAllSubs) {
+  var trs = document.querySelectorAll("#" + tableId + " tbody tr");
+  for (var i = 0; i < trs.length; i++) {
+    var tr = trs[i];
+    var label = tr.children[0] ? tr.children[0].textContent : "";
+    var names = null;
+    var gid = tr.getAttribute("data-group-toggle");
+    if (gid && tr.className.indexOf("has-subs") !== -1) {
+      names = [label].concat(groupAllSubs[gid] || []);
+    } else if (tr.getAttribute("data-account-name")) {
+      names = [tr.getAttribute("data-account-name")];
+    }
+    if (!names) { continue; }
+    for (var ci = 1; ci <= 4 && ci < tr.children.length; ci++) {
+      var td = tr.children[ci];
+      td.className = (td.className ? td.className + " " : "") + "pl-cell-click";
+      td.title = "Click for transactions";
+      td.onclick = (function (acctLabel, acctNames, colKey) {
+        return function (ev) {
+          if (ev && ev.stopPropagation) { ev.stopPropagation(); }
+          openTxnModalRange(acctLabel, acctNames, colKey);
+        };
+      })(label, names, PL_CELL_COLS[ci - 1]);
+    }
+  }
+}
+
+function periodKeyOf(s) {
+  var abbrs = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  var parts = normalizePeriod(s).split(" ");
+  if (parts.length !== 2) { return null; }
+  var m = abbrs.indexOf(parts[0]);
+  var y = parseInt(parts[1], 10);
+  if (m === -1 || isNaN(y)) { return null; }
+  return y * 12 + m;
+}
+
+function periodKeyLabel(k) {
+  var names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return names[k % 12] + " " + Math.floor(k / 12);
+}
+
+function openTxnModalRange(accountLabel, accountNames, colKey) {
+  document.getElementById("txn-modal-title").textContent = accountLabel;
+  document.getElementById("txn-modal-sub").textContent = "Loading transactions...";
+  document.getElementById("txn-modal-table").innerHTML = "";
+  document.getElementById("txn-modal-count").textContent = "";
+  document.getElementById("txn-modal-sum").textContent = "";
+  document.getElementById("txn-modal").className = "modal-overlay show";
+
+  if (colKey === "priorytd") {
+    document.getElementById("txn-modal-sub").textContent = "Prior YTD";
+    document.getElementById("txn-modal-table").innerHTML = "<tbody><tr><td style=\"text-align:center;color:#94a3b8;padding:24px;\">Work in progress &mdash; Prior YTD transaction detail is not available yet.</td></tr></tbody>";
+    return;
+  }
+
+  var curKey = periodKeyOf(window.periodLabels.cur);
+  var priorKey = periodKeyOf(window.periodLabels.prior);
+  if (curKey === null) {
+    document.getElementById("txn-modal-sub").textContent = "Could not read the selected period.";
+    return;
+  }
+  if (priorKey === null) { priorKey = curKey - 1; }
+  var curYearStart = Math.floor(curKey / 12) * 12;
+
+  var fromKey, toKey, rangeLabel;
+  if (colKey === "cur") { fromKey = curKey; toKey = curKey; rangeLabel = periodKeyLabel(curKey); }
+  else if (colKey === "prior") { fromKey = priorKey; toKey = priorKey; rangeLabel = periodKeyLabel(priorKey); }
+  else if (colKey === "curytd") { fromKey = curYearStart; toKey = curKey; rangeLabel = "Current YTD \u00B7 " + periodKeyLabel(fromKey) + " \u2013 " + periodKeyLabel(toKey); }
+  else { fromKey = curYearStart - 12; toKey = curKey - 12; rangeLabel = "Prior YTD \u00B7 " + periodKeyLabel(fromKey) + " \u2013 " + periodKeyLabel(toKey); }
+
+  var wanted = {};
+  for (var w = 0; w < accountNames.length; w++) {
+    var wn = String(accountNames[w] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
+    if (wn) { wanted[wn] = true; }
+  }
+
+  // Current period keeps using the selected-period sheet; the other columns need the full GL
+  var source = (colKey === "cur") ? getMonthlyTxnCache() : getTxnCache();
+
+  source.then(function (rows) {
+    var headerRowIdx = 0;
+    for (var hr = 0; hr < rows.length && hr < 6; hr++) {
+      var hasPeriodCell = false;
+      var hasAmountCell = false;
+      var hrowCells = rows[hr] || [];
+      for (var hcI = 0; hcI < hrowCells.length; hcI++) {
+        var hcv = String(hrowCells[hcI] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
+        if (hcv === "period") { hasPeriodCell = true; }
+        if (hcv === "amount") { hasAmountCell = true; }
+      }
+      if (hasPeriodCell && hasAmountCell) { headerRowIdx = hr; break; }
+    }
+    var headerRow = rows[headerRowIdx] || [];
+    var colIdx = { date: 0, period: 1, type: 2, docnum: 3, name: 15, memo: 16, amount: 7, acctname: 12 };
+    for (var hc = 0; hc < headerRow.length; hc++) {
+      var h = String(headerRow[hc] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
+      if (h === "date") { colIdx.date = hc; }
+      if (h === "period") { colIdx.period = hc; }
+      if (h === "type") { colIdx.type = hc; }
+      if (h.indexOf("document") !== -1) { colIdx.docnum = hc; }
+      if (h.indexOf("customer/vendor") !== -1 || h.indexOf("customer / vendor") !== -1) { colIdx.name = hc; }
+      if (h === "description") { colIdx.memo = hc; }
+      if (h === "amount") { colIdx.amount = hc; }
+      if (h.indexOf("account name") !== -1 || h.indexOf("subaccount") !== -1 || h.indexOf("sub account") !== -1 || h.indexOf("sub-account") !== -1) { colIdx.acctname = hc; }
+    }
+
+    var matches = [];
+    var earliestKey = null;
+    for (var i = headerRowIdx + 1; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r) { continue; }
+      var pk = periodKeyOf(r[colIdx.period]);
+      if (pk === null) { continue; }
+      if (earliestKey === null || pk < earliestKey) { earliestKey = pk; }
+      if (pk < fromKey || pk > toKey) { continue; }
+      var acct = String(r[colIdx.acctname] || "").replace(/^\s+|\s+$/g, "").toLowerCase();
+      if (!wanted[acct]) { continue; }
+      var amt = numVal(r[colIdx.amount]);
+      if (amt === 0) { continue; }
+      matches.push({
+        date: r[colIdx.date] || "", type: r[colIdx.type] || "", docnum: r[colIdx.docnum] || "",
+        name: r[colIdx.name] || "", memo: r[colIdx.memo] || "", amount: amt
+      });
+    }
+
+    matches.sort(function (a, b) {
+      var da = new Date(a.date);
+      var db = new Date(b.date);
+      if (isNaN(da.getTime()) || isNaN(db.getTime())) { return 0; }
+      return da.getTime() - db.getTime();
+    });
+
+    document.getElementById("txn-modal-sub").textContent = rangeLabel + " \u00B7 " + matches.length + " transaction" + (matches.length === 1 ? "" : "s");
+
+    var tableRows = [];
+    var total = 0;
+    for (var m = 0; m < matches.length; m++) {
+      var tx = matches[m];
+      total = total + tx.amount;
+      tableRows.push({
+        cells: [
+          { text: String(tx.date) }, { text: String(tx.type) }, { text: String(tx.docnum) },
+          { text: String(tx.name) }, { text: String(tx.memo) },
+          { text: fmtMoney(tx.amount), cls: tx.amount < 0 ? "neg" : "" }
+        ],
+        rowClass: ""
+      });
+    }
+    makeTable(document.getElementById("txn-modal-table"), tableRows, ["Date", "Type", "Doc #", "Name", "Memo", "Amount"]);
+    document.getElementById("txn-modal-count").textContent = matches.length + " transaction" + (matches.length === 1 ? "" : "s");
+    document.getElementById("txn-modal-sum").textContent = "Total: " + fmtMoney(total);
+
+    var coverageNote = "";
+    if (colKey !== "cur" && earliestKey !== null && fromKey < earliestKey) {
+      coverageNote = "Transaction detail starts at " + periodKeyLabel(earliestKey) + ", so months before that aren't included.";
+    }
+    if (matches.length === 0) {
+      document.getElementById("txn-modal-table").innerHTML = "<tbody><tr><td style=\"text-align:center;color:#94a3b8;padding:24px;\">No transactions found for " + accountLabel + " (" + rangeLabel + ")." + (coverageNote ? "<br><br>" + coverageNote : "") + "</td></tr></tbody>";
+    } else if (coverageNote) {
+      document.getElementById("txn-modal-sub").textContent = document.getElementById("txn-modal-sub").textContent + " \u00B7 " + coverageNote;
+    }
+  }, function (e) {
+    document.getElementById("txn-modal-sub").textContent = "Could not load transactions: " + (e && e.message ? e.message : String(e));
+  });
+}
+
 function closeTxnModal() {
   document.getElementById("txn-modal").className = "modal-overlay";
 }
@@ -2306,6 +2477,7 @@ function renderPLGeneric(range, section, tableId) {
 
     var currentGroupId = -1;
     var currentSectionIsRevenue = false;
+    var groupAllSubs = {};
 
     for (var i = 1; i < rows.length; i++) {
       var r = rows[i];
@@ -2358,6 +2530,9 @@ function renderPLGeneric(range, section, tableId) {
       }
 
       if (isSubaccount === true) {
+        var subGid = "grp" + currentGroupId;
+        if (!groupAllSubs[subGid]) { groupAllSubs[subGid] = []; }
+        groupAllSubs[subGid].push(categoryRaw);
         var subCur = numVal(r[2]);
         var subPrv = numVal(r[3]);
         if (subCur === 0 && subPrv === 0) { continue; }
@@ -2438,6 +2613,7 @@ function renderPLGeneric(range, section, tableId) {
 
     makeTableWithGroups(document.getElementById(tableId), dataRows, colHeaders, isDaily);
     wirePLToggles(tableId);
+    if (section === "pl") { wirePLCellClicks(tableId, groupAllSubs); }
 
     setLoaded(section);
   }, function (e) {
