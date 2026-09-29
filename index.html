@@ -75,6 +75,7 @@
   .row-total:hover td, .row-header:hover td, .row-reconcil:hover td { background: inherit; }
   .indent { padding-left: 24px !important; color: #64748b !important; }
   .data-table td.ttm-total { font-weight: 700; background: #f8fafc; border-left: 1px solid #e2e8f0; }
+  .row-reconcil td.neg { color: #ef4444; font-style: normal; font-weight: 600; }
   tr.pl-clickable, tr.sub-row.pl-clickable { cursor: pointer; }
   tr.row-category.pl-clickable:hover td, tr.sub-row.pl-clickable:hover td { background: #e0f2fe !important; }
   tr.row-category.pl-clickable td:first-child::after, tr.sub-row.pl-clickable td:first-child::after { content: "\2197"; font-size: 9px; color: #0ea5e9; opacity: 0; transition: opacity 0.15s; margin-left: 4px; }
@@ -323,9 +324,12 @@
 </div>
 
 <div id="section-cf12m" class="section">
-  <div class="card">
-    <div class="card-title">Cash Flow (TTM)</div>
-    <div style="padding:40px 16px;text-align:center;color:#94a3b8;font-size:13px;">Work in progress &mdash; to be added.</div>
+  <div id="cf12m-loading" class="loading"><div class="spinner"></div>Loading Cash Flow...</div>
+  <div id="cf12m-content" style="display:none;">
+    <div class="card">
+      <div class="card-title">Cash Flow (TTM)<span id="cf12m-range" style="text-transform:none;letter-spacing:0;font-weight:500;color:#94a3b8;margin-left:8px;"></span></div>
+      <div style="overflow-x:auto;"><table class="data-table" id="cf12m-table"></table></div>
+    </div>
   </div>
 </div>
 
@@ -2796,6 +2800,182 @@ function loadBS12() {
   });
 }
 
+function loadCF12() {
+  document.getElementById("cf12m-loading").style.display = "flex";
+  document.getElementById("cf12m-content").style.display = "none";
+  // Fetched with headers=0 so Google does not merge the title rows into a header row
+  var cf12Url = "https://docs.google.com/spreadsheets/d/" + window.SHEET_ID + "/gviz/tq?tqx=out:csv&headers=0&sheet=" + encodeURIComponent("12-MO CASH_FLOW");
+  return fetch(cf12Url).then(function (res) {
+    if (!res.ok) { throw new Error("Could not load sheet: 12-MO CASH_FLOW (" + res.status + ")"); }
+    return res.text();
+  }).then(function (text) {
+    if (text.indexOf("accounts.google.com") !== -1) { throw new Error("Sheet not accessible: 12-MO CASH_FLOW"); }
+    return parseCSV(text);
+  }).then(function (rows) {
+    var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    var monthRe = /^[A-Za-z]{3,9}\.?\s+\d{4}$/;
+    var rangeRe = /([A-Za-z]{3,9})\s+(\d{4})\s*[-\u2013\u2014]\s*([A-Za-z]{3,9})\s+(\d{4})/;
+    function trim(s) { return String(s === undefined || s === null ? "" : s).replace(/^\s+|\s+$/g, ""); }
+
+    // Month header row, plus an optional TOTAL column after the last month
+    var monthCols = [];
+    var monthLabels = [];
+    var totalCol = -1;
+    for (var i = 0; i < rows.length && i < 15; i++) {
+      var hr = rows[i] || [];
+      var cols = [];
+      for (var c = 0; c < hr.length; c++) {
+        if (monthRe.test(trim(hr[c]))) { cols.push(c); }
+      }
+      if (cols.length >= 3) {
+        monthCols = cols;
+        for (var m = 0; m < cols.length; m++) { monthLabels.push(trim(hr[cols[m]])); }
+        for (var tc0 = cols[cols.length - 1] + 1; tc0 < hr.length; tc0++) {
+          if (trim(hr[tc0]).toUpperCase() === "TOTAL") { totalCol = tc0; break; }
+        }
+        break;
+      }
+    }
+
+    // Date range text from the title rows
+    var rangeTxt = "";
+    var rangeStart = null;
+    for (var t = 0; t < rows.length && t < 10 && !rangeTxt; t++) {
+      var trow = rows[t] || [];
+      for (var tc = 0; tc < trow.length; tc++) {
+        var rm = String(trow[tc] || "").match(rangeRe);
+        if (rm) {
+          rangeTxt = rm[1] + " " + rm[2] + " \u2013 " + rm[3] + " " + rm[4];
+          var sd = new Date(rm[1] + " 1, " + rm[2]);
+          if (!isNaN(sd.getTime())) { rangeStart = sd; }
+          break;
+        }
+      }
+    }
+
+    // Fallback if the month header text didn't come through: use the numeric columns of NET CASH FROM OPERATIONS
+    if (monthCols.length === 0) {
+      var numCols = [];
+      for (var fr = 0; fr < rows.length; fr++) {
+        var frow = rows[fr] || [];
+        var isAnchor = false;
+        for (var fc = 0; fc < Math.min(frow.length, 6); fc++) {
+          if (trim(frow[fc]).toUpperCase() === "NET CASH FROM OPERATIONS") { isAnchor = true; }
+        }
+        if (isAnchor) {
+          for (var nc = 1; nc < frow.length; nc++) {
+            if (/\d/.test(trim(frow[nc]))) { numCols.push(nc); }
+          }
+          break;
+        }
+      }
+      if (numCols.length === 13) { totalCol = numCols.pop(); }
+      monthCols = numCols;
+      for (var ml = 0; ml < monthCols.length; ml++) {
+        if (rangeStart) {
+          var md = new Date(rangeStart.getFullYear(), rangeStart.getMonth() + ml, 1);
+          monthLabels.push(monthNames[md.getMonth()] + " " + md.getFullYear());
+        } else {
+          monthLabels.push("Month " + (ml + 1));
+        }
+      }
+    }
+
+    if (monthCols.length === 0) {
+      setError("cf12m", "Could not find month columns in 12-MO CASH_FLOW.");
+      return;
+    }
+
+    var dataCols = monthCols.slice();
+    if (totalCol !== -1) { dataCols.push(totalCol); }
+    var firstMonthCol = monthCols[0];
+
+    var parsed = [];
+    var started = false;
+    var endingVals = null;
+    var proofVals = null;
+
+    for (var r = 0; r < rows.length; r++) {
+      var row = rows[r] || [];
+      var label = "";
+      for (var lc = 0; lc < firstMonthCol && lc < row.length; lc++) {
+        var lv = trim(row[lc]);
+        if (lv) { label = lv; break; }
+      }
+      if (!label) { continue; }
+      var upper = label.toUpperCase();
+      if (!started) {
+        if (upper === "OPERATING ACTIVITIES") { started = true; } else { continue; }
+      }
+
+      var hasNums = false;
+      var allZero = true;
+      var vals = [];
+      for (var k = 0; k < dataCols.length; k++) {
+        var rawStr = trim(row[dataCols[k]]);
+        var isNumeric = /\d/.test(rawStr);
+        if (isNumeric) { hasNums = true; }
+        var n = isNumeric ? numVal(rawStr) : 0;
+        if (Math.abs(n) >= 0.005) { allZero = false; }
+        vals.push({ raw: rawStr, n: n, isNumeric: isNumeric });
+      }
+
+      if (upper.indexOf("ENDING CASH") !== -1) { endingVals = vals; }
+      if (upper.indexOf("PROOF") !== -1) { proofVals = vals; }
+      parsed.push({ label: label, upper: upper, vals: vals, hasNums: hasNums, allZero: allZero });
+    }
+
+    var tableRows = [];
+    for (var p = 0; p < parsed.length; p++) {
+      var pr = parsed[p];
+      var isRecon = pr.upper.indexOf("RECONCILIATION") !== -1;
+      var isProof = pr.upper.indexOf("PROOF") !== -1;
+      var isTotal = pr.upper.indexOf("NET CASH") !== -1 || pr.upper.indexOf("NET CHANGE") !== -1 || pr.upper.indexOf("BEGINNING") !== -1 || pr.upper.indexOf("ENDING") !== -1;
+      var isBanner = !pr.hasNums && !isRecon && pr.label === pr.upper && pr.upper.indexOf("ACTIVITIES") !== -1;
+      if (!isBanner && !isTotal && !isRecon && !isProof && pr.hasNums && pr.allZero) { continue; }
+
+      var cells = [{ text: pr.label, cls: (isBanner || isTotal || isRecon || isProof) ? "" : "indent" }];
+      for (var q = 0; q < pr.vals.length; q++) {
+        var isTotalColCell = (totalCol !== -1 && q === pr.vals.length - 1);
+        var cls = [];
+        var txt;
+        if (isBanner) {
+          txt = "";
+        } else if (isRecon) {
+          // Recomputed here: Google drops the sheet's text checkmarks from numeric columns
+          if (isTotalColCell || !endingVals || !proofVals || !endingVals[q].isNumeric || !proofVals[q].isNumeric) {
+            txt = String.fromCharCode(8212);
+          } else {
+            var diff = endingVals[q].n - proofVals[q].n;
+            if (Math.abs(diff) < 1) {
+              txt = "\u2713 Reconciled";
+            } else {
+              txt = "\u2717 Off " + fmtMoney(diff);
+              cls.push("neg");
+            }
+          }
+        } else if (!pr.vals[q].isNumeric) {
+          txt = String.fromCharCode(8212);
+        } else {
+          txt = fmtMoney(pr.vals[q].n);
+          if (!isProof) { cls.push(pr.vals[q].n < 0 ? "neg" : (pr.vals[q].n > 0 && isTotal ? "pos" : "")); }
+        }
+        if (isTotalColCell && !isBanner) { cls.push("ttm-total"); }
+        cells.push({ text: txt, cls: cls.join(" ").replace(/^\s+|\s+$/g, "") });
+      }
+      tableRows.push({ cells: cells, rowClass: (isRecon || isProof) ? "row-reconcil" : (isTotal ? "row-total" : (isBanner ? "row-header" : "")) });
+    }
+
+    var colHeaders = ["Line Item"].concat(monthLabels);
+    if (totalCol !== -1) { colHeaders.push("TTM Total"); }
+    makeTable(document.getElementById("cf12m-table"), tableRows, colHeaders);
+    document.getElementById("cf12m-range").textContent = rangeTxt ? ("\u00B7 " + rangeTxt) : "";
+    setLoaded("cf12m");
+  }, function (e) {
+    setError("cf12m", "Could not load TTM Cash Flow: " + e.message);
+  });
+}
+
 function loadCF() {
   document.getElementById("cf-loading").style.display = "flex";
   document.getElementById("cf-content").style.display = "none";
@@ -3107,6 +3287,7 @@ function loadAll(preserveTxnCache) {
     loadBS();
     loadBS12();
     loadCF();
+    loadCF12();
     loadForecast();
     loadPeriodOptions();
     loadDailyPeriodPicker().then(function () {
