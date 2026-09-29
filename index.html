@@ -1826,12 +1826,6 @@ function openTxnModalRange(accountLabel, accountNames, colKey) {
   document.getElementById("txn-modal-sum").textContent = "";
   document.getElementById("txn-modal").className = "modal-overlay show";
 
-  if (colKey !== "cur") {
-    document.getElementById("txn-modal-sub").textContent = (colKey === "prior") ? window.periodLabels.prior : (colKey === "curytd" ? "Current YTD" : "Prior YTD");
-    document.getElementById("txn-modal-table").innerHTML = "<tbody><tr><td style=\"text-align:center;color:#94a3b8;padding:24px;\">Work in progress &mdash; transaction detail for this column is not available yet.</td></tr></tbody>";
-    return;
-  }
-
   var curKey = periodKeyOf(window.periodLabels.cur);
   var priorKey = periodKeyOf(window.periodLabels.prior);
   if (curKey === null) {
