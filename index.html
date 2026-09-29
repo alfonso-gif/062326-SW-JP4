@@ -74,6 +74,7 @@
   .data-table tr:hover td { background: #f8fafc; }
   .row-total:hover td, .row-header:hover td, .row-reconcil:hover td { background: inherit; }
   .indent { padding-left: 24px !important; color: #64748b !important; }
+  .data-table td.ttm-total { font-weight: 700; background: #f8fafc; border-left: 1px solid #e2e8f0; }
   tr.pl-clickable, tr.sub-row.pl-clickable { cursor: pointer; }
   tr.row-category.pl-clickable:hover td, tr.sub-row.pl-clickable:hover td { background: #e0f2fe !important; }
   tr.row-category.pl-clickable td:first-child::after, tr.sub-row.pl-clickable td:first-child::after { content: "\2197"; font-size: 9px; color: #0ea5e9; opacity: 0; transition: opacity 0.15s; margin-left: 4px; }
@@ -302,9 +303,12 @@
 </div>
 
 <div id="section-pl12m" class="section">
-  <div class="card">
-    <div class="card-title">Profit &amp; Loss (TTM)</div>
-    <div style="padding:40px 16px;text-align:center;color:#94a3b8;font-size:13px;">Work in progress &mdash; to be added.</div>
+  <div id="pl12m-loading" class="loading"><div class="spinner"></div>Loading P&amp;L...</div>
+  <div id="pl12m-content" style="display:none;">
+    <div class="card">
+      <div class="card-title">Profit &amp; Loss (TTM)<span id="pl12m-range" style="text-transform:none;letter-spacing:0;font-weight:500;color:#94a3b8;margin-left:8px;"></span></div>
+      <div style="overflow-x:auto;"><table class="data-table" id="pl12m-table"></table></div>
+    </div>
   </div>
 </div>
 
@@ -2475,6 +2479,192 @@ function loadBS() {
   });
 }
 
+var PL12_CATEGORIES = {
+  "revenue": true, "discounts & refunds": true, "cost of goods sold": true,
+  "payroll & benefits": true, "facility & rent": true, "insurance": true, "professional services": true,
+  "marketing": true, "business development": true, "it & technology": true, "other operating expenses": true,
+  "depreciation & amortization": true, "other income": true, "other expense": true, "income tax expense": true
+};
+
+function loadPL12() {
+  document.getElementById("pl12m-loading").style.display = "flex";
+  document.getElementById("pl12m-content").style.display = "none";
+  return getCachedSheet("12-MO P&L!A1:R120").then(function (rows) {
+    var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    var monthRe = /^[A-Za-z]{3,9}\.?\s+\d{4}$/;
+    var rangeRe = /([A-Za-z]{3,9})\s+(\d{4})\s*[-\u2013\u2014]\s*([A-Za-z]{3,9})\s+(\d{4})/;
+    function trim(s) { return String(s === undefined || s === null ? "" : s).replace(/^\s+|\s+$/g, ""); }
+
+    // Month header row, plus an optional TOTAL column after the last month
+    var monthCols = [];
+    var monthLabels = [];
+    var totalCol = -1;
+    for (var i = 0; i < rows.length && i < 15; i++) {
+      var hr = rows[i] || [];
+      var cols = [];
+      for (var c = 0; c < hr.length; c++) {
+        if (monthRe.test(trim(hr[c]))) { cols.push(c); }
+      }
+      if (cols.length >= 3) {
+        monthCols = cols;
+        for (var m = 0; m < cols.length; m++) { monthLabels.push(trim(hr[cols[m]])); }
+        for (var tc0 = cols[cols.length - 1] + 1; tc0 < hr.length; tc0++) {
+          if (trim(hr[tc0]).toUpperCase() === "TOTAL") { totalCol = tc0; break; }
+        }
+        break;
+      }
+    }
+
+    // Date range text from the title rows
+    var rangeTxt = "";
+    var rangeStart = null;
+    for (var t = 0; t < rows.length && t < 10 && !rangeTxt; t++) {
+      var trow = rows[t] || [];
+      for (var tc = 0; tc < trow.length; tc++) {
+        var rm = String(trow[tc] || "").match(rangeRe);
+        if (rm) {
+          rangeTxt = rm[1] + " " + rm[2] + " \u2013 " + rm[3] + " " + rm[4];
+          var sd = new Date(rm[1] + " 1, " + rm[2]);
+          if (!isNaN(sd.getTime())) { rangeStart = sd; }
+          break;
+        }
+      }
+    }
+
+    // Fallback if the month header text didn't come through: use the numeric columns of TOTAL NET REVENUE
+    if (monthCols.length === 0) {
+      var numCols = [];
+      for (var fr = 0; fr < rows.length; fr++) {
+        var frow = rows[fr] || [];
+        var isAnchor = false;
+        for (var fc = 0; fc < Math.min(frow.length, 5); fc++) {
+          if (trim(frow[fc]).toUpperCase() === "TOTAL NET REVENUE") { isAnchor = true; }
+        }
+        if (isAnchor) {
+          for (var nc = 1; nc < frow.length; nc++) {
+            if (/\d/.test(trim(frow[nc]))) { numCols.push(nc); }
+          }
+          break;
+        }
+      }
+      if (numCols.length === 13) { totalCol = numCols.pop(); }
+      monthCols = numCols;
+      for (var ml = 0; ml < monthCols.length; ml++) {
+        if (rangeStart) {
+          var md = new Date(rangeStart.getFullYear(), rangeStart.getMonth() + ml, 1);
+          monthLabels.push(monthNames[md.getMonth()] + " " + md.getFullYear());
+        } else {
+          monthLabels.push("Month " + (ml + 1));
+        }
+      }
+    }
+
+    if (monthCols.length === 0) {
+      setError("pl12m", "Could not find month columns in 12-MO P&L.");
+      return;
+    }
+
+    var dataCols = monthCols.slice();
+    if (totalCol !== -1) { dataCols.push(totalCol); }
+    var firstMonthCol = monthCols[0];
+    var lineItemCol = firstMonthCol - 1;
+
+    var dataRows = [];
+    var started = false;
+    var groupId = -1;
+    var inGroup = false;
+
+    for (var r = 0; r < rows.length; r++) {
+      var row = rows[r] || [];
+      var label = "";
+      var labelCol = -1;
+      for (var lc = 0; lc < firstMonthCol && lc < row.length; lc++) {
+        var lv = trim(row[lc]);
+        if (lv) { label = lv; labelCol = lc; break; }
+      }
+      if (!label) { continue; }
+      var upper = label.toUpperCase();
+      if (!started) {
+        if (upper === "REVENUE" && labelCol !== lineItemCol) { started = true; } else { continue; }
+      }
+
+      var hasNums = false;
+      var allZero = true;
+      var vals = [];
+      for (var k = 0; k < dataCols.length; k++) {
+        var rawStr = trim(row[dataCols[k]]);
+        if (rawStr !== "") { hasNums = true; }
+        var n = numVal(rawStr);
+        if (Math.abs(n) >= 0.005) { allZero = false; }
+        vals.push({ raw: rawStr, n: n });
+      }
+
+      var isPct = label.indexOf("%") !== -1;
+      var isLineItem = (labelCol === lineItemCol);
+      var isBanner = !hasNums;
+      var isCategory = isLineItem && !isBanner && PL12_CATEGORIES[label.toLowerCase()] === true;
+      var isSub = isLineItem && !isBanner && !isCategory && inGroup;
+      if (isLineItem && !isCategory && !isSub) { isCategory = true; }
+
+      var cells = [{ text: label, cls: isSub ? "indent" : "" }];
+      for (var q = 0; q < vals.length; q++) {
+        var cls = [];
+        if (!isBanner && vals[q].n < 0) { cls.push("neg"); }
+        if (!isBanner && totalCol !== -1 && q === vals.length - 1) { cls.push("ttm-total"); }
+        var txt;
+        if (isBanner) { txt = ""; }
+        else if (vals[q].raw === "") { txt = String.fromCharCode(8212); }
+        else if (isPct) { txt = vals[q].raw; }
+        else { txt = fmtMoney(vals[q].n); }
+        cells.push({ text: txt, cls: cls.join(" ") });
+      }
+
+      var rowObj = { cells: cells, rowClass: "", allZero: allZero };
+      if (isBanner) {
+        rowObj.rowClass = "row-header";
+        inGroup = false;
+      } else if (isCategory) {
+        groupId = groupId + 1;
+        inGroup = true;
+        rowObj.rowClass = "row-category";
+        rowObj.isCategory = true;
+        rowObj.groupId = "ttmgrp" + groupId;
+      } else if (isSub) {
+        if (allZero) { continue; }
+        rowObj.isSub = true;
+        rowObj.groupId = "ttmgrp" + groupId;
+      } else {
+        inGroup = false;
+        rowObj.rowClass = isPct ? "" : "row-total";
+      }
+      dataRows.push(rowObj);
+    }
+
+    var groupsWithSubs = {};
+    for (var gi = 0; gi < dataRows.length; gi++) {
+      if (dataRows[gi].isSub) { groupsWithSubs[dataRows[gi].groupId] = true; }
+    }
+    var finalRows = [];
+    for (var gj = 0; gj < dataRows.length; gj++) {
+      var dr = dataRows[gj];
+      if (dr.isCategory) {
+        if (groupsWithSubs[dr.groupId]) { dr.rowClass = dr.rowClass + " has-subs"; }
+        else if (dr.allZero) { continue; }
+      }
+      finalRows.push(dr);
+    }
+
+    var colHeaders = ["Line Item"].concat(monthLabels);
+    if (totalCol !== -1) { colHeaders.push("TTM Total"); }
+    makeTableWithGroups(document.getElementById("pl12m-table"), finalRows, colHeaders, false, false);
+    wirePLToggles("pl12m-table");
+    document.getElementById("pl12m-range").textContent = rangeTxt ? ("\u00B7 " + rangeTxt) : "";
+    setLoaded("pl12m");
+  }, function (e) {
+    setError("pl12m", "Could not load TTM P&L: " + e.message);
+  });
+}
+
 function loadBS12() {
   document.getElementById("bs12m-loading").style.display = "flex";
   document.getElementById("bs12m-content").style.display = "none";
@@ -2904,6 +3094,7 @@ function loadAll(preserveTxnCache) {
     loadRevenueTrend();
     loadKPI();
     loadPL();
+    loadPL12();
     loadDailyPL();
     loadBS();
     loadBS12();
